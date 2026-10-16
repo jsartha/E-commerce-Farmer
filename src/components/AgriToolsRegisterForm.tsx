@@ -4,16 +4,16 @@ import { UserAccount } from '../types/auth';
 
 interface AgriToolsRegisterFormProps {
   onBack: () => void;
-  onSubmitSuccess: (userData: Partial<UserAccount>) => void;
+  onSubmitSuccess: (userData: Partial<UserAccount>, password?: string) => boolean | void | Promise<boolean | void>;
 }
 
 const CATEGORIES = [
-  'Seeds',
-  'Fertilizers',
   'Farming Equipment',
-  'Irrigation',
-  'Pesticides',
-  'Other Agricultural Products',
+  'Hand Tools',
+  'Tractors & Machinery',
+  'Irrigation Equipment',
+  'Sprayers',
+  'Other Agri Tools',
 ];
 
 const STATES_LIST = [
@@ -44,9 +44,8 @@ export const AgriToolsRegisterForm: React.FC<AgriToolsRegisterFormProps> = ({
   const [state, setState] = useState<string>('Haryana');
   const [district, setDistrict] = useState<string>('Karnal');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([
-    'Seeds',
     'Farming Equipment',
-    'Irrigation',
+    'Tractors & Machinery',
   ]);
   const [password, setPassword] = useState<string>('AgriSeller2026#');
   const [confirmPassword, setConfirmPassword] = useState<string>('AgriSeller2026#');
@@ -98,7 +97,7 @@ export const AgriToolsRegisterForm: React.FC<AgriToolsRegisterFormProps> = ({
     return null;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
 
@@ -109,21 +108,31 @@ export const AgriToolsRegisterForm: React.FC<AgriToolsRegisterFormProps> = ({
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
+    try {
+      const success = await onSubmitSuccess(
+        {
+          name: `${ownerFirstName.trim()} ${ownerLastName.trim()}`,
+          businessName: businessName.trim(),
+          email: email.trim(),
+          phone: phone.trim(),
+          businessAddress: businessAddress.trim(),
+          state,
+          district: district.trim(),
+          productCategories: selectedCategories,
+          accountType: 'agri-business',
+          provider: 'email',
+        },
+        password
+      );
+
+      if (success === false) {
+        setErrorMessage('This email is already registered or this password has already been used. Please choose different credentials.');
+      }
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Could not create your account.');
+    } finally {
       setIsSubmitting(false);
-      onSubmitSuccess({
-        name: `${ownerFirstName.trim()} ${ownerLastName.trim()}`,
-        businessName: businessName.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
-        businessAddress: businessAddress.trim(),
-        state,
-        district: district.trim(),
-        productCategories: selectedCategories,
-        accountType: 'agri-business',
-        provider: 'email',
-      });
-    }, 450);
+    }
   };
 
   return (
@@ -149,7 +158,7 @@ export const AgriToolsRegisterForm: React.FC<AgriToolsRegisterFormProps> = ({
           AgriBusiness Registration
         </h2>
         <p className="text-xs text-slate-400 mt-0.5">
-          Register your agricultural supplies, products, and equipment store
+          Sell and rent agricultural tools, machinery, and equipment
         </p>
       </div>
 

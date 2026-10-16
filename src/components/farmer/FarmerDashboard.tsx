@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { DashboardSection, Product, Order, ActivityLog, FarmerProfile, OrderStatus } from '../../types/dashboard';
 import {
   INITIAL_FARMER_PROFILE,
@@ -19,6 +19,14 @@ import { MarketplaceConnectSection } from './MarketplaceConnectSection';
 import { AgriBusinessConnectSection } from './AgriBusinessConnectSection';
 import { ProductFormModal } from './ProductFormModal';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
+import { getAuthToken, loadAccountData, saveAccountData } from '../../lib/api';
+
+type FarmerDashboardSnapshot = {
+  profile: FarmerProfile;
+  products: Product[];
+  orders: Order[];
+  activities: ActivityLog[];
+};
 
 interface FarmerDashboardProps {
   initialFarmer?: Partial<FarmerProfile>;
@@ -41,11 +49,59 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
     farmName: initialFarmer?.farmName || INITIAL_FARMER_PROFILE.farmName,
     farmSize: initialFarmer?.farmSize || INITIAL_FARMER_PROFILE.farmSize,
     crops: initialFarmer?.crops?.length ? initialFarmer.crops : INITIAL_FARMER_PROFILE.crops,
+    avatar: initialFarmer?.avatar || INITIAL_FARMER_PROFILE.avatar,
   });
 
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
   const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
   const [activities, setActivities] = useState<ActivityLog[]>(INITIAL_ACTIVITIES);
+  const [snapshotLoaded, setSnapshotLoaded] = useState(() => !getAuthToken());
+  const [persistenceStatus, setPersistenceStatus] = useState<'saving' | 'saved' | 'offline'>(
+    () => (getAuthToken() ? 'saving' : 'saved')
+  );
+
+  useEffect(() => {
+    let active = true;
+    if (!getAuthToken()) {
+      return;
+    }
+
+    void loadAccountData<FarmerDashboardSnapshot>('farmer-dashboard')
+      .then(({ data }) => {
+        if (!active) return;
+        if (data) {
+          setProfile(data.profile || INITIAL_FARMER_PROFILE);
+          setProducts(Array.isArray(data.products) ? data.products : INITIAL_PRODUCTS);
+          setOrders(Array.isArray(data.orders) ? data.orders : INITIAL_ORDERS);
+          setActivities(Array.isArray(data.activities) ? data.activities : INITIAL_ACTIVITIES);
+        }
+        setSnapshotLoaded(true);
+        setPersistenceStatus('saved');
+      })
+      .catch(() => {
+        if (active) setPersistenceStatus('offline');
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!snapshotLoaded || !getAuthToken()) return;
+    const timeout = window.setTimeout(() => {
+      setPersistenceStatus('saving');
+      void saveAccountData<FarmerDashboardSnapshot>('farmer-dashboard', {
+        profile,
+        products,
+        orders,
+        activities,
+      })
+        .then(() => setPersistenceStatus('saved'))
+        .catch(() => setPersistenceStatus('offline'));
+    }, 400);
+    return () => window.clearTimeout(timeout);
+  }, [snapshotLoaded, profile, products, orders, activities]);
 
   // Search query in header
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -218,6 +274,13 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
         />
 
         <main className="flex-1 p-4 sm:p-8 max-w-7xl mx-auto w-full">
+          {getAuthToken() && persistenceStatus !== 'saved' && (
+            <div role="status" className={`mb-4 rounded-xl border px-4 py-3 text-xs font-medium ${persistenceStatus === 'offline' ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-sky-200 bg-sky-50 text-sky-900'}`}>
+              {persistenceStatus === 'offline'
+                ? 'Could not save dashboard data in this browser. Your current screen data is unchanged; try again after freeing local storage space.'
+                : 'Syncing your dashboard data…'}
+            </div>
+          )}
           {currentSection === 'overview' && (
             <DashboardOverview
               profile={profile}
@@ -276,6 +339,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
           {currentSection === 'agribusiness-connect' && (
             <AgriBusinessConnectSection />
           )}
+
         </main>
       </div>
 

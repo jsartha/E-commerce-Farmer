@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Package, AlertCircle, Image as ImageIcon } from 'lucide-react';
 import { Product } from '../../types/dashboard';
 
@@ -33,6 +33,27 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   const [status, setStatus] = useState<Product['status']>('In Stock');
   const [image, setImage] = useState<string>(PRESET_IMAGES[0].url);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleImageFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setErrorMessage('Please choose a valid image file.');
+      event.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setImage(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
+  };
 
   useEffect(() => {
     if (productToEdit) {
@@ -254,7 +275,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
           {/* Image Presets & Preview */}
           <div>
             <label className="block font-medium text-slate-700 mb-1.5">
-              Product Image Preview & Presets
+              Product Image Preview & Upload
             </label>
             <div className="flex items-center gap-4 p-3 bg-[#FAFAFA] border border-slate-200 rounded-2xl mb-2">
               <img
@@ -263,15 +284,33 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 className="w-16 h-16 rounded-xl object-cover border border-slate-300 shrink-0"
               />
               <div className="min-w-0 flex-1">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-slate-800"
+                  >
+                    Camera / Device photo
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleImageFileChange}
+                    className="hidden"
+                  />
+                </div>
+
                 <input
                   type="url"
                   value={image}
                   onChange={(e) => setImage(e.target.value)}
-                  placeholder="Or enter custom image URL"
-                  className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:border-slate-400 mb-1.5"
+                  placeholder="Or paste custom image URL"
+                  className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:border-slate-400 mt-2"
                 />
-                <span className="text-[11px] text-slate-400 block">
-                  Choose from quick harvest crop presets below:
+                <span className="text-[11px] text-slate-400 block mt-1">
+                  Use the phone camera or paste a link. Choose from quick harvest presets below:
                 </span>
               </div>
             </div>

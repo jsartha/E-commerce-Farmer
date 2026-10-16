@@ -4,7 +4,7 @@ import { UserAccount } from '../types/auth';
 
 interface FarmerRegisterFormProps {
   onBack: () => void;
-  onSubmitSuccess: (userData: Partial<UserAccount>) => void;
+  onSubmitSuccess: (userData: Partial<UserAccount>, password?: string) => boolean | void | Promise<boolean | void>;
 }
 
 const STATES_DATA: Record<string, string[]> = {
@@ -97,7 +97,7 @@ export const FarmerRegisterForm: React.FC<FarmerRegisterFormProps> = ({
     return null;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
 
@@ -108,22 +108,32 @@ export const FarmerRegisterForm: React.FC<FarmerRegisterFormProps> = ({
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
+    try {
+      const success = await onSubmitSuccess(
+        {
+          name: `${firstName.trim()} ${lastName.trim()}`,
+          email: email.trim(),
+          phone: phone.trim(),
+          birthDate,
+          state: selectedState,
+          district,
+          village: village.trim(),
+          farmSize,
+          crops: selectedCrops,
+          accountType: 'farmer',
+          provider: 'email',
+        },
+        password
+      );
+
+      if (success === false) {
+        setErrorMessage('This email is already registered or this password has already been used. Please choose different credentials.');
+      }
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Could not create your account.');
+    } finally {
       setIsSubmitting(false);
-      onSubmitSuccess({
-        name: `${firstName.trim()} ${lastName.trim()}`,
-        email: email.trim(),
-        phone: phone.trim(),
-        birthDate,
-        state: selectedState,
-        district,
-        village: village.trim(),
-        farmSize,
-        crops: selectedCrops,
-        accountType: 'farmer',
-        provider: 'email',
-      });
-    }, 450);
+    }
   };
 
   return (

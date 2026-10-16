@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   UserCircle2,
   Mail,
@@ -28,6 +28,24 @@ export const MyProfileSection: React.FC<MyProfileSectionProps> = ({
   const [editForm, setEditForm] = useState<FarmerProfile>(profile);
   const [showSuccessToast, setShowSuccessToast] = useState<boolean>(false);
   const [cropInput, setCropInput] = useState<string>('');
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !file.type.startsWith('image/')) {
+      event.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setEditForm((prev) => ({ ...prev, avatar: reader.result as string }));
+      }
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
+  };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,12 +92,22 @@ export const MyProfileSection: React.FC<MyProfileSectionProps> = ({
                 referrerPolicy="no-referrer"
                 className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl object-cover border-4 border-white shadow-md"
               />
-              <div
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
                 className="absolute -bottom-1 -right-1 bg-[#D2F442] text-slate-950 p-1.5 rounded-full ring-2 ring-white shadow-xs"
-                title="Verified Grower"
+                title="Change profile photo"
               >
                 <ShieldCheck className="w-4 h-4 stroke-[2.5]" />
-              </div>
+              </button>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleAvatarChange}
+                className="hidden"
+              />
             </div>
 
             <div>

@@ -13,17 +13,72 @@ export type DashboardSection =
 export interface Product {
   id: string;
   name: string;
-  category: 'Vegetables' | 'Fruits' | 'Grains' | 'Spices' | 'Pulses';
+  category:
+    | 'Vegetables'
+    | 'Fruits'
+    | 'Grains'
+    | 'Spices'
+    | 'Pulses'
+    | 'Farming Equipment'
+    | 'Hand Tools'
+    | 'Tractors & Machinery'
+    | 'Irrigation Equipment'
+    | 'Sprayers'
+    | 'Other Agri Tools';
   description: string;
   price: number;
-  unit: 'kg' | 'quintal' | 'crate' | 'ton';
+  unit: 'kg' | 'quintal' | 'crate' | 'ton' | 'piece' | 'set' | 'day' | 'week' | 'month';
   quantity: number;
   status: 'In Stock' | 'Low Stock' | 'Out of Stock';
   image: string;
   harvestDate: string;
   rating: number;
   soldCount: number;
+  listingType?: 'sale' | 'rental';
+  sellerType?: 'farmer' | 'agri-business';
+  sellerEmail?: string;
+  sellerName?: string;
+  sellerLocation?: string;
+  createdAt?: string;
 }
+
+export type MarketplaceTransactionStatus = 'Requested' | 'Accepted' | 'Completed' | 'Cancelled';
+
+export interface MarketplaceTransaction {
+  id: string;
+  sellerEmail: string;
+  buyerName: string;
+  buyerEmail: string;
+  productId: string;
+  productName: string;
+  transactionType: 'sale' | 'rental';
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  total: number;
+  location: string;
+  createdAt: string;
+  status: MarketplaceTransactionStatus;
+}
+
+export type AgriBusinessCategory = Extract<
+  Product['category'],
+  | 'Farming Equipment'
+  | 'Hand Tools'
+  | 'Tractors & Machinery'
+  | 'Irrigation Equipment'
+  | 'Sprayers'
+  | 'Other Agri Tools'
+>;
+
+export const AGRI_BUSINESS_CATEGORIES: AgriBusinessCategory[] = [
+  'Farming Equipment',
+  'Hand Tools',
+  'Tractors & Machinery',
+  'Irrigation Equipment',
+  'Sprayers',
+  'Other Agri Tools',
+];
 
 export type OrderStatus = 'Pending' | 'Confirmed' | 'Dispatched' | 'Delivered' | 'Cancelled';
 

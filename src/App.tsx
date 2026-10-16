@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Eye, EyeOff, Check, Copy, LogOut, CheckCircle2, Sprout, Wrench, User } from 'lucide-react';
 import { AuthTab, AccountType, UserAccount } from './types/auth';
 import { GoogleModal } from './components/GoogleModal';
@@ -8,6 +8,9 @@ import { UserRegisterForm } from './components/UserRegisterForm';
 import { FarmerRegisterForm } from './components/FarmerRegisterForm';
 import { AgriToolsRegisterForm } from './components/AgriToolsRegisterForm';
 import { FarmerDashboard } from './components/farmer/FarmerDashboard';
+import { AgriBusinessDashboard } from './components/AgriBusinessDashboard';
+import { CustomerMarketplacePage } from './components/CustomerMarketplacePage';
+import { clearAuthToken, getAuthToken, loadCurrentAccount, loginAccount, registerAccount, saveAuthToken, updateAccountProfile } from './lib/api';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<AuthTab>('login');
@@ -20,12 +23,48 @@ export default function App() {
   const [rememberMe, setRememberMe] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [copiedEmail, setCopiedEmail] = useState<boolean>(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
 
-  // Modals & User state
   const [googleModalOpen, setGoogleModalOpen] = useState<boolean>(false);
   const [verificationModalOpen, setVerificationModalOpen] = useState<boolean>(false);
   const [pendingUser, setPendingUser] = useState<UserAccount | null>(null);
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
+  const profileImageInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!getAuthToken()) return;
+    let active = true;
+    void loadCurrentAccount()
+      .then(({ user }) => {
+        if (active) setCurrentUser(user);
+      })
+      .catch(() => {
+        if (active) clearAuthToken();
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleProfileImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string' && currentUser) {
+        const updatedUser = { ...currentUser, avatar: reader.result };
+        setCurrentUser(updatedUser);
+        void updateAccountProfile({ avatar: reader.result }).then(({ user }) => setCurrentUser(user));
+      }
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
+  };
 
   const handleCopyEmail = () => {
     navigator.clipboard.writeText(email);
@@ -33,51 +72,58 @@ export default function App() {
     setTimeout(() => setCopiedEmail(false), 2000);
   };
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoginError(null);
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
-      const lower = email.trim().toLowerCase();
-      if (lower.includes('farmer') || lower === 'rajesh.farmer@example.com') {
-        setCurrentUser({
-          name: 'Rajesh Kumar',
-          email: email.trim(),
-          avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
-          provider: 'email',
-          accountType: 'farmer',
-          village: 'Kila Raipur',
-          district: 'Ludhiana',
-          state: 'Punjab',
-          farmSize: '8.5 Acres',
-          crops: ['Tomatoes', 'Onions', 'Potatoes', 'Mangoes', 'Wheat'],
-        });
-      } else if (lower.includes('agri') || lower === 'contact@agromart.in') {
-        setCurrentUser({
-          name: 'Vikram Sethi',
-          email: email.trim(),
-          avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=120&auto=format&fit=crop&q=80',
-          provider: 'email',
-          accountType: 'agri-business',
-          businessName: 'AgroMart Supplies & Machinery',
-          district: 'Ludhiana',
-          state: 'Punjab',
-          productCategories: ['Seeds', 'Fertilizers', 'Equipment', 'Irrigation'],
-        });
+    try {
+      const normalizedEmail = email.trim().toLowerCase();
+      const demoAccounts: Record<string, { password: string; user: UserAccount }> = {
+        'rajesh.farmer@example.com': {
+          password: 'KisanPass2026#',
+          user: {
+            name: 'Rajesh Kumar', email: normalizedEmail,
+            avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
+            provider: 'email', accountType: 'farmer', village: 'Kila Raipur', district: 'Ludhiana',
+            state: 'Punjab', farmSize: '8.5 Acres', crops: ['Tomatoes', 'Onions', 'Potatoes', 'Mangoes', 'Wheat'],
+          },
+        },
+        'contact@agromart.in': {
+          password: 'AgriStore2026#',
+          user: {
+            name: 'Vikram Sethi', email: normalizedEmail,
+            avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=120&auto=format&fit=crop&q=80',
+            provider: 'email', accountType: 'agri-business', businessName: 'AgroMart Supplies & Machinery',
+            district: 'Ludhiana', state: 'Punjab', productCategories: ['Seeds', 'Fertilizers', 'Equipment', 'Irrigation'],
+          },
+        },
+        'jsarthak168@gmail.com': {
+          password: 'SecureKey99#',
+          user: {
+            name: 'Sarthak', email: normalizedEmail,
+            avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
+            provider: 'email', accountType: 'user',
+          },
+        },
+      };
+      const demoAccount = demoAccounts[normalizedEmail];
+      if (demoAccount && demoAccount.password === password) {
+        saveAuthToken(normalizedEmail, demoAccount.user);
+        setCurrentUser(demoAccount.user);
       } else {
-        setCurrentUser({
-          name: 'Sarthak',
-          email: email.trim(),
-          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
-          provider: 'email',
-          accountType: 'user',
-        });
+        const response = await loginAccount(normalizedEmail, password);
+        saveAuthToken(response.token, response.user);
+        setCurrentUser(response.user);
       }
-    }, 450);
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : 'Could not sign in.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleRegistrationFormSubmit = (userData: Partial<UserAccount>) => {
-    const newUser: UserAccount = {
+  const handleRegistrationFormSubmit = async (userData: Partial<UserAccount>, passwordValue?: string) => {
+    const newUserData: Partial<UserAccount> = {
       name: userData.name || 'User',
       email: userData.email || email,
       accountType: userData.accountType || selectedAccountType || 'user',
@@ -100,11 +146,15 @@ export default function App() {
           : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
     };
 
-    setPendingUser(newUser);
+    const response = await registerAccount(newUserData, passwordValue || '');
+    saveAuthToken(response.token, response.user);
+    setPendingUser(response.user);
     setVerificationModalOpen(true);
+    return true;
   };
 
   const handleGoogleSuccess = (user: UserAccount) => {
+    saveAuthToken(user.email, user);
     setCurrentUser(user);
   };
 
@@ -113,10 +163,9 @@ export default function App() {
       setCurrentUser(pendingUser);
       setPendingUser(null);
     } else {
-      // Direct forgot-password flow
       setCurrentUser({
         name: 'Sarthak',
-        email: email,
+        email,
         provider: 'email',
         accountType: 'user',
       });
@@ -126,6 +175,7 @@ export default function App() {
 
   const handleLogout = () => {
     setCurrentUser(null);
+    clearAuthToken();
     setPassword('SecureKey99#');
     setSelectedAccountType(null);
     setActiveTab('login');
@@ -138,7 +188,7 @@ export default function App() {
     }
   };
 
-  // If the logged in user is a Farmer, display the complete Flipkart-style Farmer Dashboard!
+  // Farmer dashboard remains restricted to the farmer account type.
   if (currentUser && currentUser.accountType === 'farmer') {
     return (
       <FarmerDashboard
@@ -160,6 +210,24 @@ export default function App() {
             'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
         }}
         onLogout={handleLogout}
+      />
+    );
+  }
+
+  if (currentUser && currentUser.accountType === 'agri-business') {
+    return <AgriBusinessDashboard user={currentUser} onLogout={handleLogout} />;
+  }
+
+  // Customers can browse farmer produce and agricultural tools, including equipment rentals.
+  if (currentUser && currentUser.accountType === 'user') {
+    return (
+      <CustomerMarketplacePage
+        user={currentUser}
+        onLogout={handleLogout}
+        onUpdateUser={(updatedUser) => {
+          setCurrentUser(updatedUser);
+          void updateAccountProfile(updatedUser).then(({ user }) => setCurrentUser(user));
+        }}
       />
     );
   }
@@ -211,18 +279,36 @@ export default function App() {
             {/* Profile Summary Card */}
             <div className="p-4 bg-[#F8F9F6] border border-slate-100 rounded-2xl text-left space-y-3">
               <div className="flex items-center gap-3.5">
-                {currentUser.avatar ? (
-                  <img
-                    src={currentUser.avatar}
-                    alt={currentUser.name}
-                    referrerPolicy="no-referrer"
-                    className="w-12 h-12 rounded-full object-cover border border-slate-200"
+                <div className="relative">
+                  {currentUser.avatar ? (
+                    <img
+                      src={currentUser.avatar}
+                      alt={currentUser.name}
+                      referrerPolicy="no-referrer"
+                      className="w-12 h-12 rounded-full object-cover border border-slate-200"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-700">
+                      {currentUser.name.charAt(0)}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => profileImageInputRef.current?.click()}
+                    className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#D2F442] text-[10px] font-bold text-slate-900 shadow-sm"
+                    title="Change profile photo"
+                  >
+                    +
+                  </button>
+                  <input
+                    ref={profileImageInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleProfileImageChange}
+                    className="hidden"
                   />
-                ) : (
-                  <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-700">
-                    {currentUser.name.charAt(0)}
-                  </div>
-                )}
+                </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-bold text-slate-900 truncate">
@@ -314,28 +400,6 @@ export default function App() {
 
             <button
               type="button"
-              onClick={() => {
-                setCurrentUser({
-                  name: 'Rajesh Kumar',
-                  email: 'rajesh.farmer@example.com',
-                  avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
-                  provider: 'email',
-                  accountType: 'farmer',
-                  village: 'Kila Raipur',
-                  district: 'Ludhiana',
-                  state: 'Punjab',
-                  farmSize: '8.5 Acres',
-                  crops: ['Tomatoes', 'Onions', 'Potatoes', 'Mangoes', 'Wheat'],
-                });
-              }}
-              className="w-full py-3 px-4 bg-[#D2F442] hover:bg-[#c6ec32] text-slate-950 font-bold text-xs sm:text-sm rounded-2xl shadow-xs transition-all cursor-pointer flex items-center justify-center gap-2"
-            >
-              <Sprout className="w-4 h-4 text-slate-950" />
-              <span>Open Farmer Seller Hub</span>
-            </button>
-
-            <button
-              type="button"
               onClick={handleLogout}
               className="w-full py-3.5 px-4 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs sm:text-sm rounded-2xl shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2"
             >
@@ -371,7 +435,6 @@ export default function App() {
                 Sign Up
               </button>
             </div>
-
             {/* TAB 1: LOG IN (Exact Same Design & Features Kept Pristine) */}
             {activeTab === 'login' && (
               <div>
@@ -480,12 +543,14 @@ export default function App() {
 
                 {/* Login Form */}
                 <form onSubmit={handleLoginSubmit} className="space-y-4">
-                  {/* Email with 1-Click Copy */}
+                  {loginError && (
+                    <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs text-rose-700">
+                      {loginError}
+                    </div>
+                  )}
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-xs font-medium text-slate-700">
-                        Email Address
-                      </label>
+                      <label className="block text-xs font-medium text-slate-700">Email Address</label>
                       <button
                         type="button"
                         onClick={handleCopyEmail}
@@ -546,7 +611,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Remember me & Forget password */}
                   <div className="flex items-center justify-between pt-1">
                     <label className="flex items-center gap-2 cursor-pointer select-none">
                       <div
@@ -559,7 +623,6 @@ export default function App() {
                       </div>
                       <span className="text-xs text-slate-600">Remember me</span>
                     </label>
-
                     <button
                       type="button"
                       onClick={() => setVerificationModalOpen(true)}
@@ -644,14 +707,11 @@ export default function App() {
         )}
       </div>
 
-      {/* Google Sign-in Modal */}
       <GoogleModal
         isOpen={googleModalOpen}
         onClose={() => setGoogleModalOpen(false)}
         onSuccess={handleGoogleSuccess}
       />
-
-      {/* Email OTP Verification Modal */}
       <VerificationModal
         isOpen={verificationModalOpen}
         email={pendingUser?.email || email}
