@@ -1,0 +1,6 @@
+{
+  "name": "Sign In & Sign Up - Simple Login Page",
+  "description": "Simple and modern login, sign up, and verification page with Google and credential authentication.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
