@@ -1,5 +1,6 @@
 import { UserAccount } from '../types/auth';
 import { MarketplaceTransaction, Product } from '../types/dashboard';
+import { LEGACY_DEMO_ACCOUNT_EMAILS, LEGACY_DEMO_PRODUCT_IDS } from '../data/legacyDemoIds';
 
 const TOKEN_KEY = 'farmer-marketplace-session-email';
 const SESSION_USER_KEY = 'farmer-marketplace-session-user';
@@ -56,8 +57,45 @@ export const registerAccount = async (userData: Partial<UserAccount>, password: 
   const accounts = readAccounts();
   accounts.push({ user, ...await hashPassword(password) });
   localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
-  saveAuthToken(email, user);
   return { user, token: email };
+};
+
+const apiRequest = async <T,>(path: string, body: Record<string, unknown> = {}) => {
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.error || 'Request failed.');
+  }
+
+  return payload as T;
+};
+
+export const requestEmailVerification = async (email: string, name?: string) => {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail) throw new Error('Email is required.');
+  return apiRequest<{ success: boolean; message: string }>('/api/send-verification', {
+    email: normalizedEmail,
+    name: name || 'User',
+  });
+};
+
+export const verifyEmailCode = async (email: string, code: string) => {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail || !code.trim()) {
+    throw new Error('Verification code is required.');
+  }
+
+  return apiRequest<{ success: boolean; message: string }>('/api/verify-code', {
+    email: normalizedEmail,
+    code: code.trim(),
+  });
 };
 
 export const loginAccount = async (emailValue: string, password: string) => {
@@ -94,6 +132,41 @@ export const saveAuthToken = (token: string, user?: UserAccount) => {
 export const clearAuthToken = () => {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(SESSION_USER_KEY);
+};
+
+export const clearLegacyDemoData = () => {
+  const accounts = readAccounts();
+  const legacyDemoEmails = new Set(
+    Array.from(LEGACY_DEMO_ACCOUNT_EMAILS).filter((email) =>
+      !accounts.some(
+        (account) => account.user.email.toLowerCase() === email && account.passwordHash
+      )
+    )
+  );
+  const remainingAccounts = accounts.filter(
+    (account) => !legacyDemoEmails.has(account.user.email.toLowerCase())
+  );
+  if (remainingAccounts.length !== accounts.length) {
+    localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(remainingAccounts));
+  }
+
+  legacyDemoEmails.forEach((email) => {
+    localStorage.removeItem(`${DATA_KEY_PREFIX}${email}`);
+  });
+
+  const raw: unknown = JSON.parse(localStorage.getItem(MARKETPLACE_TRANSACTIONS_KEY) || '[]');
+  if (!Array.isArray(raw)) throw new Error('Saved marketplace sales data is invalid.');
+  const transactions = raw as MarketplaceTransaction[];
+  const remainingTransactions = transactions.filter(
+    (transaction) => !legacyDemoEmails.has(transaction.buyerEmail.toLowerCase())
+      && !legacyDemoEmails.has(transaction.sellerEmail.toLowerCase())
+  );
+  if (remainingTransactions.length !== transactions.length) {
+    localStorage.setItem(MARKETPLACE_TRANSACTIONS_KEY, JSON.stringify(remainingTransactions));
+  }
+
+  const sessionEmail = localStorage.getItem(TOKEN_KEY)?.trim().toLowerCase();
+  if (sessionEmail && legacyDemoEmails.has(sessionEmail)) clearAuthToken();
 };
 
 export const getAuthToken = () => localStorage.getItem(TOKEN_KEY);
@@ -146,12 +219,22 @@ export const loadMarketplaceTransactions = async (sellerEmail: string) => {
   };
 };
 
+export const loadMarketplaceTransactionsForBuyer = async (buyerEmail: string) => {
+  const raw: unknown = JSON.parse(localStorage.getItem(MARKETPLACE_TRANSACTIONS_KEY) || '[]');
+  if (!Array.isArray(raw)) throw new Error('Saved marketplace sales data is invalid.');
+  return {
+    transactions: (raw as MarketplaceTransaction[]).filter(
+      (transaction) => transaction.buyerEmail.toLowerCase() === buyerEmail.trim().toLowerCase()
+    ),
+  };
+};
+
 export const recordMarketplaceTransaction = async (transaction: MarketplaceTransaction) => {
   const raw: unknown = JSON.parse(localStorage.getItem(MARKETPLACE_TRANSACTIONS_KEY) || '[]');
   if (!Array.isArray(raw)) throw new Error('Saved marketplace sales data is invalid.');
   const transactions = raw as MarketplaceTransaction[];
   if (transactions.some((saved) => saved.id === transaction.id)) {
-    throw new Error('This demo order has already been recorded.');
+    throw new Error('This order has already been recorded.');
   }
   localStorage.setItem(MARKETPLACE_TRANSACTIONS_KEY, JSON.stringify([transaction, ...transactions]));
   return { transaction };
@@ -187,7 +270,9 @@ export const loadMarketplaceListings = async () => {
     if (account.user.accountType === 'farmer') {
       const snapshot = readUserData(account.user.email)['farmer-dashboard'] as { products?: Product[] } | undefined;
       return Array.isArray(snapshot?.products)
-        ? snapshot.products.map((product) => ({
+        ? snapshot.products
+          .filter((product) => !LEGACY_DEMO_PRODUCT_IDS.has(product.id))
+          .map((product) => ({
             ...product,
             sellerType: 'farmer' as const,
             sellerEmail: account.user.email,
@@ -198,7 +283,9 @@ export const loadMarketplaceListings = async () => {
     if (account.user.accountType === 'agri-business') {
       const snapshot = readUserData(account.user.email)['agri-business-dashboard'] as { products?: Product[] } | undefined;
       return Array.isArray(snapshot?.products)
-        ? snapshot.products.map((product) => ({
+        ? snapshot.products
+          .filter((product) => !LEGACY_DEMO_PRODUCT_IDS.has(product.id))
+          .map((product) => ({
             ...product,
             sellerType: 'agri-business' as const,
             sellerName: account.user.businessName || account.user.name,

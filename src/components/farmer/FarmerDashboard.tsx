@@ -1,19 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { DashboardSection, Product, Order, ActivityLog, FarmerProfile, OrderStatus } from '../../types/dashboard';
 import {
-  INITIAL_FARMER_PROFILE,
-  INITIAL_PRODUCTS,
-  INITIAL_ORDERS,
-  INITIAL_ACTIVITIES,
-} from '../../data/mockFarmerData';
+  LEGACY_DEMO_ACTIVITY_IDS,
+  LEGACY_DEMO_FARMER_AVATAR,
+  LEGACY_DEMO_ORDER_IDS,
+  LEGACY_DEMO_PRODUCT_IDS,
+} from '../../data/legacyDemoIds';
 import { FarmerSidebar } from './FarmerSidebar';
 import { FarmerHeader } from './FarmerHeader';
-import { DashboardOverview } from './DashboardOverview';
+import { DashboardBreakdown, RoleDashboardOverview } from '../RoleDashboardOverview';
 import { MyProfileSection } from './MyProfileSection';
 import { MyProductsSection } from './MyProductsSection';
 import { MyListingsSection } from './MyListingsSection';
 import { OrdersSection } from './OrdersSection';
-import { SalesOverviewSection } from './SalesOverviewSection';
 import { RecentActivitySection } from './RecentActivitySection';
 import { MarketplaceConnectSection } from './MarketplaceConnectSection';
 import { AgriBusinessConnectSection } from './AgriBusinessConnectSection';
@@ -39,22 +38,23 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
 }) => {
   const [currentSection, setCurrentSection] = useState<DashboardSection>('overview');
   const [profile, setProfile] = useState<FarmerProfile>({
-    ...INITIAL_FARMER_PROFILE,
-    name: initialFarmer?.name || INITIAL_FARMER_PROFILE.name,
-    email: initialFarmer?.email || INITIAL_FARMER_PROFILE.email,
-    phone: initialFarmer?.phone || INITIAL_FARMER_PROFILE.phone,
-    village: initialFarmer?.village || INITIAL_FARMER_PROFILE.village,
-    district: initialFarmer?.district || INITIAL_FARMER_PROFILE.district,
-    state: initialFarmer?.state || INITIAL_FARMER_PROFILE.state,
-    farmName: initialFarmer?.farmName || INITIAL_FARMER_PROFILE.farmName,
-    farmSize: initialFarmer?.farmSize || INITIAL_FARMER_PROFILE.farmSize,
-    crops: initialFarmer?.crops?.length ? initialFarmer.crops : INITIAL_FARMER_PROFILE.crops,
-    avatar: initialFarmer?.avatar || INITIAL_FARMER_PROFILE.avatar,
+    name: initialFarmer?.name || 'Farmer',
+    email: initialFarmer?.email || '',
+    phone: initialFarmer?.phone || '',
+    village: initialFarmer?.village || '',
+    district: initialFarmer?.district || '',
+    state: initialFarmer?.state || '',
+    farmName: initialFarmer?.farmName || '',
+    farmSize: initialFarmer?.farmSize || '',
+    crops: initialFarmer?.crops || [],
+    avatar: initialFarmer?.avatar || '',
+    joinedDate: '',
+    sellerRating: initialFarmer?.sellerRating || 0,
   });
 
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
-  const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
-  const [activities, setActivities] = useState<ActivityLog[]>(INITIAL_ACTIVITIES);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [activities, setActivities] = useState<ActivityLog[]>([]);
   const [snapshotLoaded, setSnapshotLoaded] = useState(() => !getAuthToken());
   const [persistenceStatus, setPersistenceStatus] = useState<'saving' | 'saved' | 'offline'>(
     () => (getAuthToken() ? 'saving' : 'saved')
@@ -70,10 +70,24 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
       .then(({ data }) => {
         if (!active) return;
         if (data) {
-          setProfile(data.profile || INITIAL_FARMER_PROFILE);
-          setProducts(Array.isArray(data.products) ? data.products : INITIAL_PRODUCTS);
-          setOrders(Array.isArray(data.orders) ? data.orders : INITIAL_ORDERS);
-          setActivities(Array.isArray(data.activities) ? data.activities : INITIAL_ACTIVITIES);
+          if (data.profile) {
+            const savedProfile = { ...data.profile };
+            if (savedProfile.avatar === LEGACY_DEMO_FARMER_AVATAR) {
+              savedProfile.avatar = initialFarmer?.avatar || '';
+            }
+            if (savedProfile.joinedDate === 'March 2025') savedProfile.joinedDate = '';
+            if (savedProfile.sellerRating === 4.9) savedProfile.sellerRating = 0;
+            setProfile((current) => ({ ...current, ...savedProfile }));
+          }
+          setProducts(Array.isArray(data.products)
+            ? data.products.filter((product) => !LEGACY_DEMO_PRODUCT_IDS.has(product.id))
+            : []);
+          setOrders(Array.isArray(data.orders)
+            ? data.orders.filter((order) => !LEGACY_DEMO_ORDER_IDS.has(order.id))
+            : []);
+          setActivities(Array.isArray(data.activities)
+            ? data.activities.filter((activity) => !LEGACY_DEMO_ACTIVITY_IDS.has(activity.id))
+            : []);
         }
         setSnapshotLoaded(true);
         setPersistenceStatus('saved');
@@ -122,6 +136,62 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
+
+  const farmerListingBreakdown: DashboardBreakdown[] = Object.entries(
+    products.reduce<Record<string, number>>((counts, product) => {
+      counts[product.category] = (counts[product.category] || 0) + 1;
+      return counts;
+    }, {})
+  )
+    .sort(([, first], [, second]) => second - first)
+    .slice(0, 5)
+    .map(([label, value], index) => ({
+      label,
+      value,
+      color: ['#2563eb', '#4f46e5', '#0d9488', '#f59e0b', '#94a3b8'][index],
+    }));
+  const activeFarmerListings = products.filter((product) => product.status !== 'Out of Stock').length;
+  const pendingFarmerOrders = orders.filter((order) => order.status === 'Pending' || order.status === 'Confirmed').length;
+  const deliveredFarmerOrders = orders.filter((order) => order.status === 'Delivered').length;
+  const deliveredOrders = orders.filter((order) => order.status === 'Delivered');
+  const farmerRevenue = deliveredOrders.reduce((total, order) => total + order.totalPrice, 0);
+  const farmerUnitsSold = deliveredOrders.reduce((total, order) => total + order.quantity, 0);
+  const farmerAverageOrder = deliveredOrders.length ? Math.round(farmerRevenue / deliveredOrders.length) : 0;
+  const farmerTopPerformers = Object.entries(
+    deliveredOrders.reduce<Record<string, number>>((totals, order) => {
+      totals[order.productName] = (totals[order.productName] || 0) + order.totalPrice;
+      return totals;
+    }, {})
+  )
+    .map(([label, value]) => ({ label, value }))
+    .sort((first, second) => second.value - first.value);
+  const farmerSalesTrend = Array.from({ length: 6 }, (_, offset) => {
+    const month = new Date();
+    month.setDate(1);
+    month.setHours(0, 0, 0, 0);
+    month.setMonth(month.getMonth() - (5 - offset));
+    const value = orders
+      .filter((order) => {
+        if (order.status !== 'Delivered') return false;
+        let orderDate: Date;
+        if (order.orderDate.startsWith('Today')) {
+          orderDate = new Date();
+        } else if (order.orderDate.startsWith('Yesterday')) {
+          orderDate = new Date();
+          orderDate.setDate(orderDate.getDate() - 1);
+        } else {
+          orderDate = new Date(order.orderDate);
+        }
+        return !Number.isNaN(orderDate.getTime())
+          && orderDate.getMonth() === month.getMonth()
+          && orderDate.getFullYear() === month.getFullYear();
+      })
+      .reduce((total, order) => total + order.totalPrice, 0);
+    return {
+      label: month.toLocaleDateString(undefined, { month: 'short' }),
+      value,
+    };
+  });
 
   const addActivity = (
     type: ActivityLog['type'],
@@ -238,7 +308,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#ECEFE9] text-slate-900 font-sans flex antialiased">
+    <div className="min-h-screen bg-[#eef1f5] text-slate-900 font-sans flex antialiased">
       {/* Dynamic Toast Feedback */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 p-4 bg-slate-900 border border-slate-700 text-white rounded-2xl shadow-2xl flex items-center gap-3 text-xs animate-fade-in font-sans">
@@ -281,14 +351,32 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
                 : 'Syncing your dashboard data…'}
             </div>
           )}
-          {currentSection === 'overview' && (
-            <DashboardOverview
-              profile={profile}
-              products={products}
-              orders={orders}
-              activities={activities}
-              onNavigate={setCurrentSection}
-              onOpenAddProduct={handleOpenAddModal}
+          {(currentSection === 'overview' || currentSection === 'sales') && (
+            <RoleDashboardOverview
+              role="Farmer"
+              name={profile.name}
+              description={`${profile.farmName} · ${profile.village}, ${profile.state}`}
+              metrics={[
+                { label: 'Completed sales', value: `₹${farmerRevenue.toLocaleString('en-IN')}`, detail: 'Delivered orders only' },
+                { label: 'Average order value', value: `₹${farmerAverageOrder.toLocaleString('en-IN')}`, detail: 'Delivered orders only' },
+                { label: 'Units sold', value: farmerUnitsSold.toLocaleString('en-IN'), detail: `${deliveredFarmerOrders} completed orders` },
+                { label: 'Open orders', value: String(pendingFarmerOrders), detail: 'Pending or confirmed' },
+              ]}
+              funnelTitle="Farm sales funnel"
+              funnel={[
+                { label: 'Products listed', value: String(products.length), detail: 'All farm products' },
+                { label: 'Available', value: String(activeFarmerListings), detail: 'Ready for orders' },
+                { label: 'Open orders', value: String(pendingFarmerOrders), detail: 'Awaiting fulfillment' },
+                { label: 'Delivered', value: String(deliveredFarmerOrders), detail: 'Orders completed' },
+              ]}
+              breakdownTitle="Product mix"
+              breakdown={farmerListingBreakdown}
+              audienceTitle="Crop & product categories"
+              audience={farmerListingBreakdown}
+              salesTrend={farmerSalesTrend}
+              topPerformers={farmerTopPerformers}
+              onAddListing={handleOpenAddModal}
+              onViewOrders={() => setCurrentSection('orders')}
             />
           )}
 
@@ -324,10 +412,6 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
             />
           )}
 
-          {currentSection === 'sales' && (
-            <SalesOverviewSection orders={orders} products={products} />
-          )}
-
           {currentSection === 'activity' && (
             <RecentActivitySection activities={activities} />
           )}
@@ -337,7 +421,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
           )}
 
           {currentSection === 'agribusiness-connect' && (
-            <AgriBusinessConnectSection />
+            <AgriBusinessConnectSection farmerName={profile.name} farmerEmail={profile.email} />
           )}
 
         </main>

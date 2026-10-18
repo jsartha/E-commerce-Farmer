@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, Plus, Bell, Search, MapPin, ShieldCheck } from 'lucide-react';
+import { Menu, Plus, Bell, Search, MapPin, UserCircle2 } from 'lucide-react';
 import { FarmerProfile } from '../../types/dashboard';
 
 interface FarmerHeaderProps {
@@ -22,7 +22,7 @@ export const FarmerHeader: React.FC<FarmerHeaderProps> = ({
   onSearchChange,
 }) => {
   return (
-    <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-8 py-3.5 flex items-center justify-between gap-4">
+    <header className="sticky top-0 z-30 bg-[#eef1f5]/95 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-8 py-3.5 flex items-center justify-between gap-4">
       {/* Left: Mobile Menu & Search */}
       <div className="flex items-center gap-3 flex-1 max-w-md">
         <button
@@ -40,7 +40,7 @@ export const FarmerHeader: React.FC<FarmerHeaderProps> = ({
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search crops, orders, listings..."
-            className="w-full pl-9 pr-4 py-2 text-xs bg-[#F5F6F3] border border-transparent focus:border-slate-300 focus:bg-white rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none transition-all"
+            className="w-full pl-9 pr-4 py-2 text-xs bg-white border border-slate-200 focus:border-blue-300 focus:bg-white rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none transition-all"
           />
         </div>
       </div>
@@ -51,14 +51,8 @@ export const FarmerHeader: React.FC<FarmerHeaderProps> = ({
         <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-[#F8F9F5] border border-slate-200/60 rounded-xl text-xs text-slate-700">
           <MapPin className="w-3.5 h-3.5 text-emerald-600" />
           <span>
-            {profile.village}, {profile.state}
+            {[profile.village, profile.state].filter(Boolean).join(', ') || 'Add farm location'}
           </span>
-        </div>
-
-        {/* Verified Seller Pill */}
-        <div className="hidden sm:flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200/60 rounded-xl text-[11px] font-semibold">
-          <ShieldCheck className="w-3.5 h-3.5" />
-          <span>FSSAI / Organic Verified</span>
         </div>
 
         {/* Activity Notification Bell */}
@@ -83,12 +77,16 @@ export const FarmerHeader: React.FC<FarmerHeaderProps> = ({
         </button>
 
         {/* Avatar */}
-        <img
-          src={profile.avatar}
-          alt={profile.name}
-          referrerPolicy="no-referrer"
-          className="w-9 h-9 rounded-full object-cover border border-slate-200"
-        />
+        {profile.avatar ? (
+          <img
+            src={profile.avatar}
+            alt={profile.name}
+            referrerPolicy="no-referrer"
+            className="w-9 h-9 rounded-full object-cover border border-slate-200"
+          />
+        ) : (
+          <UserCircle2 className="h-9 w-9 text-slate-400" aria-label={profile.name} />
+        )}
       </div>
     </header>
   );

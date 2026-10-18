@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Eye, EyeOff, Check, Copy, LogOut, CheckCircle2, Sprout, Wrench, User } from 'lucide-react';
+import { Eye, EyeOff, Check, LogOut, CheckCircle2, Sprout, Wrench, User } from 'lucide-react';
 import { AuthTab, AccountType, UserAccount } from './types/auth';
 import { GoogleModal } from './components/GoogleModal';
 import { VerificationModal } from './components/VerificationModal';
@@ -10,19 +10,18 @@ import { AgriToolsRegisterForm } from './components/AgriToolsRegisterForm';
 import { FarmerDashboard } from './components/farmer/FarmerDashboard';
 import { AgriBusinessDashboard } from './components/AgriBusinessDashboard';
 import { CustomerMarketplacePage } from './components/CustomerMarketplacePage';
-import { clearAuthToken, getAuthToken, loadCurrentAccount, loginAccount, registerAccount, saveAuthToken, updateAccountProfile } from './lib/api';
+import { clearAuthToken, clearLegacyDemoData, getAuthToken, loadCurrentAccount, loginAccount, registerAccount, requestEmailVerification, saveAuthToken, updateAccountProfile, verifyEmailCode } from './lib/api';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<AuthTab>('login');
   const [selectedAccountType, setSelectedAccountType] = useState<AccountType | null>(null);
 
   // Login form state
-  const [email, setEmail] = useState<string>('jsarthak168@gmail.com');
-  const [password, setPassword] = useState<string>('SecureKey99#');
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [rememberMe, setRememberMe] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [copiedEmail, setCopiedEmail] = useState<boolean>(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
   const [googleModalOpen, setGoogleModalOpen] = useState<boolean>(false);
@@ -32,6 +31,12 @@ export default function App() {
   const profileImageInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
+    try {
+      clearLegacyDemoData();
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : 'Could not remove legacy demo data.');
+      return;
+    }
     if (!getAuthToken()) return;
     let active = true;
     void loadCurrentAccount()
@@ -66,55 +71,15 @@ export default function App() {
     event.target.value = '';
   };
 
-  const handleCopyEmail = () => {
-    navigator.clipboard.writeText(email);
-    setCopiedEmail(true);
-    setTimeout(() => setCopiedEmail(false), 2000);
-  };
-
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
     setIsSubmitting(true);
     try {
       const normalizedEmail = email.trim().toLowerCase();
-      const demoAccounts: Record<string, { password: string; user: UserAccount }> = {
-        'rajesh.farmer@example.com': {
-          password: 'KisanPass2026#',
-          user: {
-            name: 'Rajesh Kumar', email: normalizedEmail,
-            avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
-            provider: 'email', accountType: 'farmer', village: 'Kila Raipur', district: 'Ludhiana',
-            state: 'Punjab', farmSize: '8.5 Acres', crops: ['Tomatoes', 'Onions', 'Potatoes', 'Mangoes', 'Wheat'],
-          },
-        },
-        'contact@agromart.in': {
-          password: 'AgriStore2026#',
-          user: {
-            name: 'Vikram Sethi', email: normalizedEmail,
-            avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=120&auto=format&fit=crop&q=80',
-            provider: 'email', accountType: 'agri-business', businessName: 'AgroMart Supplies & Machinery',
-            district: 'Ludhiana', state: 'Punjab', productCategories: ['Seeds', 'Fertilizers', 'Equipment', 'Irrigation'],
-          },
-        },
-        'jsarthak168@gmail.com': {
-          password: 'SecureKey99#',
-          user: {
-            name: 'Sarthak', email: normalizedEmail,
-            avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
-            provider: 'email', accountType: 'user',
-          },
-        },
-      };
-      const demoAccount = demoAccounts[normalizedEmail];
-      if (demoAccount && demoAccount.password === password) {
-        saveAuthToken(normalizedEmail, demoAccount.user);
-        setCurrentUser(demoAccount.user);
-      } else {
-        const response = await loginAccount(normalizedEmail, password);
-        saveAuthToken(response.token, response.user);
-        setCurrentUser(response.user);
-      }
+      const response = await loginAccount(normalizedEmail, password);
+      saveAuthToken(response.token, response.user);
+      setCurrentUser(response.user);
     } catch (error) {
       setLoginError(error instanceof Error ? error.message : 'Could not sign in.');
     } finally {
@@ -138,45 +103,38 @@ export default function App() {
       businessName: userData.businessName,
       businessAddress: userData.businessAddress,
       productCategories: userData.productCategories,
-      avatar:
-        userData.accountType === 'farmer'
-          ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80'
-          : userData.accountType === 'agri-business'
-          ? 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=120&auto=format&fit=crop&q=80'
-          : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
     };
 
     const response = await registerAccount(newUserData, passwordValue || '');
-    saveAuthToken(response.token, response.user);
+    await requestEmailVerification(response.user.email, response.user.name);
     setPendingUser(response.user);
     setVerificationModalOpen(true);
     return true;
   };
 
-  const handleGoogleSuccess = (user: UserAccount) => {
-    saveAuthToken(user.email, user);
-    setCurrentUser(user);
+  const handleVerificationSuccess = async (code: string) => {
+    const verifiedUser = pendingUser || {
+      name: 'User',
+      email,
+      provider: 'email',
+      accountType: 'user',
+    };
+
+    await verifyEmailCode(verifiedUser.email, code);
+    saveAuthToken(verifiedUser.email, verifiedUser);
+    setCurrentUser(verifiedUser);
+    setPendingUser(null);
+    setSelectedAccountType(null);
   };
 
-  const handleVerificationSuccess = () => {
-    if (pendingUser) {
-      setCurrentUser(pendingUser);
-      setPendingUser(null);
-    } else {
-      setCurrentUser({
-        name: 'Sarthak',
-        email,
-        provider: 'email',
-        accountType: 'user',
-      });
-    }
-    setSelectedAccountType(null);
+  const handleVerificationResend = async () => {
+    const userEmail = pendingUser?.email || email;
+    await requestEmailVerification(userEmail, pendingUser?.name || 'User');
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
     clearAuthToken();
-    setPassword('SecureKey99#');
     setSelectedAccountType(null);
     setActiveTab('login');
   };
@@ -193,21 +151,16 @@ export default function App() {
     return (
       <FarmerDashboard
         initialFarmer={{
-          name: currentUser.name || 'Rajesh Kumar',
-          email: currentUser.email || 'rajesh.farmer@example.com',
-          phone: currentUser.phone || '+91 98765 43210',
-          village: currentUser.village || 'Kila Raipur',
-          district: currentUser.district || 'Ludhiana',
-          state: currentUser.state || 'Punjab',
-          farmName: currentUser.farmSize ? `${currentUser.name}'s Organic Farm` : 'Green Acres Organic Farm',
-          farmSize: currentUser.farmSize || '8.5 Acres',
-          crops:
-            currentUser.crops && currentUser.crops.length > 0
-              ? currentUser.crops
-              : ['Tomatoes', 'Onions', 'Potatoes', 'Mangoes', 'Wheat'],
-          avatar:
-            currentUser.avatar ||
-            'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
+          name: currentUser.name,
+          email: currentUser.email,
+          phone: currentUser.phone,
+          village: currentUser.village,
+          district: currentUser.district,
+          state: currentUser.state,
+          farmName: currentUser.farmSize ? `${currentUser.name}'s Farm` : '',
+          farmSize: currentUser.farmSize || '',
+          crops: currentUser.crops || [],
+          avatar: currentUser.avatar,
         }}
         onLogout={handleLogout}
       />
@@ -268,7 +221,7 @@ export default function App() {
                 You are securely logged in as a{' '}
                 <span className="font-semibold text-slate-800">
                   {currentUser.accountType === 'farmer'
-                    ? 'Verified Farmer'
+                    ? 'Farmer'
                     : currentUser.accountType === 'agri-business'
                     ? 'AgriBusiness Owner'
                     : 'Customer'}
@@ -486,61 +439,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Quick 1-Click Demo Accounts */}
-                <div className="mb-4 p-2.5 bg-[#F8F9F6] border border-slate-200/80 rounded-2xl">
-                  <div className="flex items-center justify-between text-[11px] font-medium text-slate-500 mb-1.5 px-0.5">
-                    <span>Quick Demo Login:</span>
-                    <span className="text-[10px] text-slate-400">1-click fill</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-1.5 text-center">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEmail('rajesh.farmer@example.com');
-                        setPassword('KisanPass2026#');
-                      }}
-                      className={`py-1.5 px-1.5 rounded-xl text-[11px] font-semibold border transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                        email === 'rajesh.farmer@example.com'
-                          ? 'bg-[#D2F442] border-[#bfe42f] text-slate-950 shadow-xs'
-                          : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
-                      }`}
-                    >
-                      <Sprout className="w-3 h-3 text-emerald-600" />
-                      <span>Farmer</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEmail('contact@agromart.in');
-                        setPassword('AgriStore2026#');
-                      }}
-                      className={`py-1.5 px-1.5 rounded-xl text-[11px] font-semibold border transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                        email === 'contact@agromart.in'
-                          ? 'bg-[#D2F442] border-[#bfe42f] text-slate-950 shadow-xs'
-                          : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
-                      }`}
-                    >
-                      <Wrench className="w-3 h-3 text-blue-600" />
-                      <span>AgriBiz</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEmail('jsarthak168@gmail.com');
-                        setPassword('SecureKey99#');
-                      }}
-                      className={`py-1.5 px-1.5 rounded-xl text-[11px] font-semibold border transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                        email === 'jsarthak168@gmail.com'
-                          ? 'bg-[#D2F442] border-[#bfe42f] text-slate-950 shadow-xs'
-                          : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
-                      }`}
-                    >
-                      <User className="w-3 h-3 text-purple-600" />
-                      <span>Customer</span>
-                    </button>
-                  </div>
-                </div>
-
                 {/* Login Form */}
                 <form onSubmit={handleLoginSubmit} className="space-y-4">
                   {loginError && (
@@ -549,32 +447,12 @@ export default function App() {
                     </div>
                   )}
                   <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-xs font-medium text-slate-700">Email Address</label>
-                      <button
-                        type="button"
-                        onClick={handleCopyEmail}
-                        className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
-                        title="Copy this email"
-                      >
-                        {copiedEmail ? (
-                          <>
-                            <Check className="w-3 h-3 text-emerald-600" />
-                            <span className="text-emerald-600 font-medium">Copied!</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3 h-3 text-slate-400" />
-                            <span>Copy email</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
+                    <label className="mb-1.5 block text-xs font-medium text-slate-700">Email Address</label>
                     <input
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="jsarthak168@gmail.com"
+                      placeholder="you@example.com"
                       required
                       className="w-full px-4 py-3 text-xs bg-[#FAFAFA] border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-400 focus:bg-white transition-all"
                     />
@@ -710,13 +588,13 @@ export default function App() {
       <GoogleModal
         isOpen={googleModalOpen}
         onClose={() => setGoogleModalOpen(false)}
-        onSuccess={handleGoogleSuccess}
       />
       <VerificationModal
         isOpen={verificationModalOpen}
         email={pendingUser?.email || email}
         onClose={() => setVerificationModalOpen(false)}
-        onSuccess={handleVerificationSuccess}
+        onVerify={handleVerificationSuccess}
+        onResend={handleVerificationResend}
       />
     </div>
   );

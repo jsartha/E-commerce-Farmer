@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Store, Wrench, Sprout, Star, Phone, CheckCircle2, ShieldCheck, Tag, ShoppingCart, Tractor, X } from 'lucide-react';
-import { AgriBusinessDeal, Product } from '../../types/dashboard';
-import { SAMPLE_AGRIBUSINESS_DEALS } from '../../data/mockFarmerData';
-import { getAuthToken, loadAccountData, loadMarketplaceListings, recordMarketplaceTransaction, saveAccountData } from '../../lib/api';
+import { Wrench, ShieldCheck, Tag, ShoppingCart, Tractor, X } from 'lucide-react';
+import { MarketplaceTransactionStatus, Product } from '../../types/dashboard';
+import { getAuthToken, loadAccountData, loadMarketplaceListings, loadMarketplaceTransactionsForBuyer, recordMarketplaceTransaction, saveAccountData } from '../../lib/api';
 
 interface FarmerEquipmentOrder {
   id: string;
@@ -17,11 +16,22 @@ interface FarmerEquipmentOrder {
 
 type FarmerEquipmentOrderSnapshot = { orders: FarmerEquipmentOrder[] };
 
-export const AgriBusinessConnectSection: React.FC = () => {
-  const [deals, setDeals] = useState<AgriBusinessDeal[]>(SAMPLE_AGRIBUSINESS_DEALS);
-  const [claimedIds, setClaimedIds] = useState<string[]>([]);
+interface AgriBusinessConnectSectionProps {
+  farmerName: string;
+  farmerEmail: string;
+}
+
+const TRANSACTION_STATUS_LABELS: Record<MarketplaceTransactionStatus, string> = {
+  Requested: 'Request sent',
+  Accepted: 'Accepted',
+  Completed: 'Completed',
+  Cancelled: 'Declined',
+};
+
+export const AgriBusinessConnectSection: React.FC<AgriBusinessConnectSectionProps> = ({ farmerName, farmerEmail }) => {
   const [tools, setTools] = useState<Product[]>([]);
   const [equipmentOrders, setEquipmentOrders] = useState<FarmerEquipmentOrder[]>([]);
+  const [buyerTransactions, setBuyerTransactions] = useState<{ id: string; status: MarketplaceTransactionStatus }[]>([]);
   const [selectedTool, setSelectedTool] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState('1');
   const [location, setLocation] = useState('');
@@ -31,28 +41,49 @@ export const AgriBusinessConnectSection: React.FC = () => {
 
   useEffect(() => {
     let active = true;
-    void loadMarketplaceListings()
-      .then(({ products }) => {
-        if (active) setTools(products.filter((product) => product.sellerType === 'agri-business'));
-      })
-      .catch((error: unknown) => {
-        if (active) setOrderError(error instanceof Error ? error.message : 'Could not load agri-business products.');
-      });
+    const refreshListings = () => {
+      void loadMarketplaceListings()
+        .then(({ products }) => {
+          if (active) setTools(products.filter((product) => product.sellerType === 'agri-business'));
+        })
+        .catch((error: unknown) => {
+          if (active) setOrderError(error instanceof Error ? error.message : 'Could not load agri-business products.');
+        });
+    };
+    const refreshTransactions = () => {
+      if (!getAuthToken() || !farmerEmail) return;
+      void loadMarketplaceTransactionsForBuyer(farmerEmail)
+        .then(({ transactions }) => {
+          if (active) setBuyerTransactions(transactions.map(({ id, status }) => ({ id, status })));
+        })
+        .catch((error: unknown) => {
+          if (active) setOrderError(error instanceof Error ? error.message : 'Could not refresh your equipment requests.');
+        });
+    };
+    refreshListings();
+    refreshTransactions();
+    const refreshInterval = window.setInterval(() => {
+      refreshListings();
+      refreshTransactions();
+    }, 5000);
     if (!getAuthToken()) {
       setOrdersLoaded(true);
-      return () => { active = false; };
+    } else {
+      void loadAccountData<FarmerEquipmentOrderSnapshot>('farmer-agri-orders')
+        .then(({ data }) => {
+          if (!active) return;
+          if (data && Array.isArray(data.orders)) setEquipmentOrders(data.orders);
+          setOrdersLoaded(true);
+        })
+        .catch((error: unknown) => {
+          if (active) setOrderError(error instanceof Error ? error.message : 'Could not load your equipment requests.');
+        });
     }
-    void loadAccountData<FarmerEquipmentOrderSnapshot>('farmer-agri-orders')
-      .then(({ data }) => {
-        if (!active) return;
-        if (data && Array.isArray(data.orders)) setEquipmentOrders(data.orders);
-        setOrdersLoaded(true);
-      })
-      .catch((error: unknown) => {
-        if (active) setOrderError(error instanceof Error ? error.message : 'Could not load your equipment requests.');
-      });
-    return () => { active = false; };
-  }, []);
+    return () => {
+      active = false;
+      window.clearInterval(refreshInterval);
+    };
+  }, [farmerEmail]);
 
   useEffect(() => {
     if (!ordersLoaded || !getAuthToken()) return;
@@ -63,14 +94,11 @@ export const AgriBusinessConnectSection: React.FC = () => {
     return () => window.clearTimeout(timeout);
   }, [equipmentOrders, ordersLoaded]);
 
-  const handleClaim = (id: string) => {
-    setClaimedIds((prev) => [...prev, id]);
-  };
-
-  const submitEquipmentRequest = (event: React.FormEvent) => {
+  const submitEquipmentRequest = async (event: React.FormEvent) => {
     event.preventDefault();
     const count = Number(quantity);
     if (!selectedTool || !location.trim() || !Number.isInteger(count) || count < 1
+      || !selectedTool.sellerEmail
       || (selectedTool.listingType !== 'rental' && count > selectedTool.quantity)) {
       setOrderError('Enter a valid quantity or rental duration and your pickup/farm location.');
       return;
@@ -85,13 +113,12 @@ export const AgriBusinessConnectSection: React.FC = () => {
       createdAt: new Date().toLocaleString(),
       status: 'Request sent',
     };
-    setEquipmentOrders((current) => [order, ...current]);
-    if (selectedTool.sellerEmail) {
-      void recordMarketplaceTransaction({
+    try {
+      await recordMarketplaceTransaction({
         id: order.id,
         sellerEmail: selectedTool.sellerEmail,
-        buyerName: 'Farmer',
-        buyerEmail: getAuthToken() || '',
+        buyerName: farmerName,
+        buyerEmail: farmerEmail,
         productId: selectedTool.id,
         productName: selectedTool.name,
         transactionType: order.listingType,
@@ -102,14 +129,17 @@ export const AgriBusinessConnectSection: React.FC = () => {
         location: order.location,
         createdAt: new Date().toISOString(),
         status: 'Requested',
-      }).catch((error: unknown) => {
-        setOrderError(error instanceof Error ? error.message : 'Could not send the seller request.');
       });
+      setEquipmentOrders((current) => [order, ...current]);
+      setOrderNotice(`${order.listingType === 'rental' ? 'Rental request' : 'Purchase request'} ${order.id} sent.`);
+      setSelectedTool(null);
+      setOrderError('');
+    } catch (error: unknown) {
+      setOrderError(error instanceof Error ? error.message : 'Could not send the seller request.');
     }
-    setOrderNotice(`${order.listingType === 'rental' ? 'Rental request' : 'Purchase request'} ${order.id} sent.`);
-    setSelectedTool(null);
-    setOrderError('');
   };
+
+  const transactionStatusById = new Map(buyerTransactions.map(({ id, status }) => [id, status]));
 
   return (
     <div className="space-y-6 animate-fade-in font-sans">
@@ -129,7 +159,7 @@ export const AgriBusinessConnectSection: React.FC = () => {
 
         <div className="flex items-center gap-2 px-3 py-1.5 bg-[#D2F442]/50 text-slate-900 rounded-xl text-xs font-semibold self-start sm:self-auto">
           <Tag className="w-4 h-4" />
-          <span>Exclusive Farmer Discount Rates</span>
+          <span>Registered merchant listings</span>
         </div>
       </div>
 
@@ -175,8 +205,8 @@ export const AgriBusinessConnectSection: React.FC = () => {
             <div className="space-y-2">
               {equipmentOrders.map((order) => (
                 <div key={order.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 p-3 text-xs">
-                  <span><strong>{order.product.name}</strong> · {order.listingType === 'rental' ? `${order.quantity} ${order.product.unit}(s)` : `${order.quantity} item(s)`} · ₹{order.total}</span>
-                  <span className="text-slate-500">{order.status} · {order.id}</span>
+                  <span><strong>{order.product.name}</strong> · {order.product.sellerName || 'AgriBusiness'} · {order.listingType === 'rental' ? `${order.quantity} ${order.product.unit}(s)` : `${order.quantity} item(s)`} · ₹{order.total}</span>
+                  <span className="text-slate-500">{TRANSACTION_STATUS_LABELS[transactionStatusById.get(order.id) || 'Requested']} · {order.id}</span>
                 </div>
               ))}
             </div>
@@ -184,94 +214,26 @@ export const AgriBusinessConnectSection: React.FC = () => {
         )}
       </div>
 
-      {/* Supplier Deals Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {deals.map((deal) => {
-          const isClaimed = claimedIds.includes(deal.id);
-          return (
-            <div
-              key={deal.id}
-              className="bg-white rounded-[26px] border border-slate-200/80 p-5 sm:p-6 shadow-xs hover:border-slate-300 transition-all flex flex-col justify-between space-y-4"
-            >
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-bold">
-                    {deal.category}
-                  </span>
-                  <div className="flex items-center gap-1 text-xs font-semibold text-amber-600">
-                    <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                    <span>{deal.rating}</span>
-                    <span className="text-slate-400 font-normal">· Verified Merchant</span>
-                  </div>
-
-                  {selectedTool && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-                      <form onSubmit={submitEquipmentRequest} className="w-full max-w-md space-y-4 rounded-3xl bg-white p-6 shadow-xl">
-                        <div className="flex items-start justify-between">
-                          <div><p className="text-xs font-bold uppercase text-emerald-700">{selectedTool.listingType === 'rental' ? 'Equipment rental' : 'Purchase request'}</p><h3 className="mt-1 text-xl font-black">{selectedTool.name}</h3></div>
-                          <button type="button" onClick={() => setSelectedTool(null)} aria-label="Close"><X className="h-5 w-5" /></button>
-                        </div>
-                        <label className="block text-xs font-semibold">{selectedTool.listingType === 'rental' ? `Rental duration (${selectedTool.unit})` : `Quantity (${selectedTool.unit})`}
-                          <input required type="number" min="1" max={selectedTool.listingType === 'rental' ? undefined : selectedTool.quantity} value={quantity} onChange={(event) => setQuantity(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
-                        </label>
-                        <label className="block text-xs font-semibold">Farm / pickup location
-                          <textarea required rows={2} value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Village, district, state" className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
-                        </label>
-                        {orderError && <p role="alert" className="text-xs text-rose-700">{orderError}</p>}
-                        <p className="text-sm">Estimated total: <strong>₹{selectedTool.price * (Number(quantity) || 0)}</strong></p>
-                        <button type="submit" className="w-full rounded-xl bg-[#D2F442] px-4 py-3 text-sm font-bold">Send demo request</button>
-                        <p className="text-center text-[11px] text-slate-400">Demo request only; no payment is collected.</p>
-                      </form>
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 leading-snug">
-                    {deal.title}
-                  </h3>
-                  <p className="text-xs font-semibold text-slate-600 mt-0.5 flex items-center gap-1.5">
-                    <Store className="w-3.5 h-3.5 text-slate-400" />
-                    <span>{deal.supplierName}</span>
-                  </p>
-                </div>
-
-                <div className="p-3 bg-[#F8F9F5] rounded-2xl border border-slate-200/60 flex items-center justify-between text-xs">
-                  <div>
-                    <span className="text-[10px] text-slate-400 block font-medium">Farmer Special Price</span>
-                    <span className="font-bold text-slate-900 font-mono text-sm">{deal.price}</span>
-                  </div>
-                  <span className="px-2 py-1 bg-emerald-100 text-emerald-800 text-[11px] font-bold rounded-lg">
-                    {deal.discount}
-                  </span>
-                </div>
-              </div>
-
-              {/* Action */}
-              <div className="flex items-center gap-3 pt-2 border-t border-slate-100">
-                <div className="flex items-center gap-1.5 text-xs text-slate-500 font-mono flex-1">
-                  <Phone className="w-3.5 h-3.5 text-slate-400" />
-                  <span>{deal.contact}</span>
-                </div>
-
-                {isClaimed ? (
-                  <div className="px-4 py-2 bg-emerald-50 text-emerald-800 text-xs font-bold rounded-xl flex items-center gap-1.5 border border-emerald-200">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Discount Code Sent</span>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => handleClaim(deal.id)}
-                    className="px-4 py-2 bg-[#D2F442] hover:bg-[#c6ec32] text-slate-950 font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
-                  >
-                    Claim Farmer Discount
-                  </button>
-                )}
-              </div>
+      {selectedTool && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <form onSubmit={submitEquipmentRequest} className="w-full max-w-md space-y-4 rounded-3xl bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between">
+              <div><p className="text-xs font-bold uppercase text-emerald-700">{selectedTool.listingType === 'rental' ? 'Equipment rental' : 'Purchase request'}</p><h3 className="mt-1 text-xl font-black">{selectedTool.name}</h3></div>
+              <button type="button" onClick={() => setSelectedTool(null)} aria-label="Close"><X className="h-5 w-5" /></button>
             </div>
-          );
-        })}
-      </div>
+            <label className="block text-xs font-semibold">{selectedTool.listingType === 'rental' ? `Rental duration (${selectedTool.unit})` : `Quantity (${selectedTool.unit})`}
+              <input required type="number" min="1" max={selectedTool.listingType === 'rental' ? undefined : selectedTool.quantity} value={quantity} onChange={(event) => setQuantity(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+            </label>
+            <label className="block text-xs font-semibold">Farm / pickup location
+              <textarea required rows={2} value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Village, district, state" className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+            </label>
+            {orderError && <p role="alert" className="text-xs text-rose-700">{orderError}</p>}
+            <p className="text-sm">Estimated total: <strong>₹{selectedTool.price * (Number(quantity) || 0)}</strong></p>
+            <button type="submit" className="w-full rounded-xl bg-[#D2F442] px-4 py-3 text-sm font-bold">Send request</button>
+            <p className="text-center text-[11px] text-slate-400">Your request will be sent to the seller. No payment is collected here.</p>
+          </form>
+        </div>
+      )}
     </div>
   );
 };

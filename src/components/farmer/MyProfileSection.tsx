@@ -86,12 +86,16 @@ export const MyProfileSection: React.FC<MyProfileSectionProps> = ({
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 pb-6 border-b border-slate-100">
           <div className="flex items-center gap-5">
             <div className="relative">
-              <img
-                src={profile.avatar}
-                alt={profile.name}
-                referrerPolicy="no-referrer"
-                className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl object-cover border-4 border-white shadow-md"
-              />
+              {profile.avatar ? (
+                <img
+                  src={profile.avatar}
+                  alt={profile.name}
+                  referrerPolicy="no-referrer"
+                  className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl object-cover border-4 border-white shadow-md"
+                />
+              ) : (
+                <UserCircle2 className="h-20 w-20 text-slate-300 sm:h-24 sm:w-24" aria-label={profile.name} />
+              )}
               <button
                 type="button"
                 onClick={() => avatarInputRef.current?.click()}
@@ -115,23 +119,26 @@ export const MyProfileSection: React.FC<MyProfileSectionProps> = ({
                 <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
                   {profile.name}
                 </h1>
-                <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                  Verified Farmer
-                </span>
-                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#D2F442]/50 text-slate-900 flex items-center gap-1">
-                  <Star className="w-3 h-3 fill-slate-900" />
-                  <span>{profile.sellerRating} Rating</span>
-                </span>
+                {profile.sellerRating > 0 && (
+                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#D2F442]/50 text-slate-900 flex items-center gap-1">
+                    <Star className="w-3 h-3 fill-slate-900" />
+                    <span>{profile.sellerRating} Rating</span>
+                  </span>
+                )}
               </div>
               <p className="text-sm font-semibold text-slate-600 mt-1">{profile.farmName}</p>
               <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1.5">
                 <MapPin className="w-3.5 h-3.5 text-slate-400" />
                 <span>
-                  {profile.village}, {profile.district}, {profile.state}
+                  {[profile.village, profile.district, profile.state].filter(Boolean).join(', ') || 'Add farm location'}
                 </span>
-                <span>·</span>
-                <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                <span>Member since {profile.joinedDate}</span>
+                {profile.joinedDate && (
+                  <>
+                    <span>·</span>
+                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Member since {profile.joinedDate}</span>
+                  </>
+                )}
               </p>
             </div>
           </div>

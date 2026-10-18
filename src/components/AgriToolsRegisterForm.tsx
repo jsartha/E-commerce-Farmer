@@ -35,20 +35,17 @@ export const AgriToolsRegisterForm: React.FC<AgriToolsRegisterFormProps> = ({
   onBack,
   onSubmitSuccess,
 }) => {
-  const [ownerFirstName, setOwnerFirstName] = useState<string>('Vikram');
-  const [ownerLastName, setOwnerLastName] = useState<string>('Singh');
-  const [businessName, setBusinessName] = useState<string>('Kisan Agro Equipment & Seeds');
-  const [email, setEmail] = useState<string>('contact@kisanagro.com');
-  const [phone, setPhone] = useState<string>('9812345678');
-  const [businessAddress, setBusinessAddress] = useState<string>('Shop 14, Main Mandi Road, Sector 3');
-  const [state, setState] = useState<string>('Haryana');
-  const [district, setDistrict] = useState<string>('Karnal');
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([
-    'Farming Equipment',
-    'Tractors & Machinery',
-  ]);
-  const [password, setPassword] = useState<string>('AgriSeller2026#');
-  const [confirmPassword, setConfirmPassword] = useState<string>('AgriSeller2026#');
+  const [ownerFirstName, setOwnerFirstName] = useState<string>('');
+  const [ownerLastName, setOwnerLastName] = useState<string>('');
+  const [businessName, setBusinessName] = useState<string>('');
+  const [email, setEmail] = useState<string>('');
+  const [phone, setPhone] = useState<string>('');
+  const [businessAddress, setBusinessAddress] = useState<string>('');
+  const [state, setState] = useState<string>('');
+  const [district, setDistrict] = useState<string>('');
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [password, setPassword] = useState<string>('');
+  const [confirmPassword, setConfirmPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -56,9 +53,7 @@ export const AgriToolsRegisterForm: React.FC<AgriToolsRegisterFormProps> = ({
 
   const toggleCategory = (cat: string) => {
     if (selectedCategories.includes(cat)) {
-      if (selectedCategories.length > 1) {
-        setSelectedCategories(selectedCategories.filter((c) => c !== cat));
-      }
+      setSelectedCategories(selectedCategories.filter((c) => c !== cat));
     } else {
       setSelectedCategories([...selectedCategories, cat]);
     }
@@ -181,7 +176,7 @@ export const AgriToolsRegisterForm: React.FC<AgriToolsRegisterFormProps> = ({
               required
               value={ownerFirstName}
               onChange={(e) => setOwnerFirstName(e.target.value)}
-              placeholder="Vikram"
+              placeholder="First name"
               className="w-full px-3.5 py-2.5 text-xs bg-[#FAFAFA] border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-400 focus:bg-white transition-all"
             />
           </div>
@@ -194,7 +189,7 @@ export const AgriToolsRegisterForm: React.FC<AgriToolsRegisterFormProps> = ({
               required
               value={ownerLastName}
               onChange={(e) => setOwnerLastName(e.target.value)}
-              placeholder="Singh"
+              placeholder="Last name"
               className="w-full px-3.5 py-2.5 text-xs bg-[#FAFAFA] border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-400 focus:bg-white transition-all"
             />
           </div>
@@ -210,7 +205,7 @@ export const AgriToolsRegisterForm: React.FC<AgriToolsRegisterFormProps> = ({
             required
             value={businessName}
             onChange={(e) => setBusinessName(e.target.value)}
-            placeholder="e.g. Kisan Agro Equipment & Seeds"
+            placeholder="Business or shop name"
             className="w-full px-3.5 py-2.5 text-xs bg-[#FAFAFA] border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-400 focus:bg-white transition-all"
           />
         </div>
@@ -226,7 +221,7 @@ export const AgriToolsRegisterForm: React.FC<AgriToolsRegisterFormProps> = ({
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="contact@kisanagro.com"
+              placeholder="you@example.com"
               className="w-full px-3.5 py-2.5 text-xs bg-[#FAFAFA] border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-400 focus:bg-white transition-all"
             />
           </div>
@@ -239,7 +234,7 @@ export const AgriToolsRegisterForm: React.FC<AgriToolsRegisterFormProps> = ({
               required
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="9812345678"
+              placeholder="10-digit phone number"
               className="w-full px-3.5 py-2.5 text-xs bg-[#FAFAFA] border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-400 focus:bg-white transition-all font-mono"
             />
           </div>
@@ -255,7 +250,7 @@ export const AgriToolsRegisterForm: React.FC<AgriToolsRegisterFormProps> = ({
             required
             value={businessAddress}
             onChange={(e) => setBusinessAddress(e.target.value)}
-            placeholder="Shop 14, Main Mandi Road, Sector 3"
+            placeholder="Business or shop address"
             className="w-full px-3.5 py-2.5 text-xs bg-[#FAFAFA] border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-400 focus:bg-white transition-all"
           />
         </div>
@@ -267,10 +262,12 @@ export const AgriToolsRegisterForm: React.FC<AgriToolsRegisterFormProps> = ({
               State *
             </label>
             <select
+              required
               value={state}
               onChange={(e) => setState(e.target.value)}
               className="w-full px-3.5 py-2.5 text-xs bg-[#FAFAFA] border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:border-slate-400 focus:bg-white transition-all"
             >
+              <option value="" disabled>Select state</option>
               {STATES_LIST.map((st) => (
                 <option key={st} value={st}>
                   {st}
@@ -287,7 +284,7 @@ export const AgriToolsRegisterForm: React.FC<AgriToolsRegisterFormProps> = ({
               required
               value={district}
               onChange={(e) => setDistrict(e.target.value)}
-              placeholder="Karnal"
+              placeholder="District"
               className="w-full px-3.5 py-2.5 text-xs bg-[#FAFAFA] border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:border-slate-400 focus:bg-white transition-all"
             />
           </div>

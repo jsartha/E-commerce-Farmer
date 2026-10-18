@@ -3,7 +3,6 @@ import { ArrowRight, LogOut, MapPin, ShoppingCart, Star, Leaf, UserRound, Packag
 import { Product } from '../types/dashboard';
 import { UserAccount } from '../types/auth';
 import { getAuthToken, loadAccountData, loadMarketplaceListings, recordMarketplaceTransaction, saveAccountData } from '../lib/api';
-import { INITIAL_PRODUCTS } from '../data/mockFarmerData';
 
 type CustomerOrder = {
   id: string;
@@ -32,7 +31,8 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
 }) => {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [activeView, setActiveView] = useState<'shop' | 'orders' | 'profile'>('shop');
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [productsLoadError, setProductsLoadError] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [checkoutProduct, setCheckoutProduct] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState(1);
@@ -56,9 +56,13 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
     let active = true;
     void loadMarketplaceListings()
       .then(({ products: farmerProducts }) => {
-        if (active && farmerProducts.length > 0) setProducts(farmerProducts);
+        if (active) setProducts(farmerProducts);
       })
-      .catch(() => undefined);
+      .catch((error: unknown) => {
+        if (active) {
+          setProductsLoadError(error instanceof Error ? error.message : 'Could not load marketplace products.');
+        }
+      });
     return () => {
       active = false;
     };
@@ -216,7 +220,7 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
                 <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Delivering to</p>
                 <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-slate-800">
                   <MapPin className="h-3.5 w-3.5 text-emerald-600" />
-                  {user.village || 'Ludhiana'}, {user.district || 'Punjab'}
+                  {[user.village, user.district, user.state].filter(Boolean).join(', ') || 'Add delivery location'}
                 </p>
               </div>
 
@@ -263,6 +267,11 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
         )}
 
         {activeView === 'shop' && <>
+        {productsLoadError && (
+          <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+            {productsLoadError}
+          </p>
+        )}
         <section className="rounded-[28px] border border-slate-200/80 bg-white p-4 shadow-sm sm:p-5">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
@@ -292,7 +301,12 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
         </section>
 
         <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {filteredProducts.map((product: Product) => (
+          {filteredProducts.length === 0 ? (
+            <div className="col-span-full rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center">
+              <h3 className="font-bold text-slate-900">No products available yet</h3>
+              <p className="mt-1 text-sm text-slate-500">New seller listings will appear here.</p>
+            </div>
+          ) : filteredProducts.map((product: Product) => (
             <article
               key={product.id}
               className="group overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg"

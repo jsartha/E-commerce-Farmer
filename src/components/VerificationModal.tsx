@@ -5,18 +5,23 @@ interface VerificationModalProps {
   isOpen: boolean;
   email: string;
   onClose: () => void;
-  onSuccess: () => void;
+  onVerify: (code: string) => Promise<void> | void;
+  onResend: () => Promise<void> | void;
 }
 
 export const VerificationModal: React.FC<VerificationModalProps> = ({
   isOpen,
   email,
   onClose,
-  onSuccess,
+  onVerify,
+  onResend,
 }) => {
-  const [digits, setDigits] = useState<string[]>(['4', '7', '', '']);
+  const [digits, setDigits] = useState<string[]>(['', '', '', '', '', '']);
   const [isVerifying, setIsVerifying] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const inputRefs = [
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
     useRef<HTMLInputElement>(null),
     useRef<HTMLInputElement>(null),
     useRef<HTMLInputElement>(null),
@@ -29,11 +34,12 @@ export const VerificationModal: React.FC<VerificationModalProps> = ({
     if (value.length > 1) {
       value = value.slice(-1);
     }
-    const newDigits = [...digits];
-    newDigits[index] = value;
-    setDigits(newDigits);
+    const nextDigits = [...digits];
+    nextDigits[index] = value;
+    setDigits(nextDigits);
+    setErrorMessage(null);
 
-    if (value && index < 3) {
+    if (value && index < 5) {
       inputRefs[index + 1].current?.focus();
     }
   };
@@ -44,14 +50,28 @@ export const VerificationModal: React.FC<VerificationModalProps> = ({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const enteredCode = digits.join('');
+
+    if (enteredCode.length !== 6) {
+      setErrorMessage('Please enter the full 6-digit verification code.');
+      return;
+    }
+
     setIsVerifying(true);
-    setTimeout(() => {
-      setIsVerifying(false);
-      onSuccess();
+    setErrorMessage(null);
+
+    try {
+      await onVerify(enteredCode);
       onClose();
-    }, 450);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to verify the code.');
+      setDigits(['', '', '', '', '', '']);
+      inputRefs[0].current?.focus();
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
   return (
@@ -75,12 +95,12 @@ export const VerificationModal: React.FC<VerificationModalProps> = ({
         <div className="text-center space-y-1 mb-6">
           <h2 className="text-lg font-bold text-slate-900">Verification code</h2>
           <p className="text-xs text-slate-400 max-w-[240px] mx-auto leading-relaxed">
-            Enter the verification code sent to <span className="text-slate-700 font-medium">{email}</span>
+            Enter the 6-digit code sent to <span className="text-slate-700 font-medium">{email}</span>
           </p>
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div className="flex items-center justify-center gap-3 mb-6">
+          <div className="flex items-center justify-center gap-2 mb-4">
             {digits.map((digit, idx) => {
               const isFilled = digit !== '';
               const isSecondActive = idx === 1 && isFilled;
@@ -94,7 +114,7 @@ export const VerificationModal: React.FC<VerificationModalProps> = ({
                   value={digit}
                   onChange={(e) => handleDigitChange(idx, e.target.value)}
                   onKeyDown={(e) => handleKeyDown(idx, e)}
-                  className={`w-11 h-11 text-center text-base font-bold rounded-full transition-all focus:outline-none ${
+                  className={`w-9 h-11 text-center text-base font-bold rounded-full transition-all focus:outline-none ${
                     isSecondActive
                       ? 'bg-[#8E85FF] text-white shadow-sm ring-2 ring-[#8E85FF]/30'
                       : isFilled
@@ -105,6 +125,12 @@ export const VerificationModal: React.FC<VerificationModalProps> = ({
               );
             })}
           </div>
+
+          {errorMessage && (
+            <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] text-rose-700">
+              {errorMessage}
+            </div>
+          )}
 
           <button
             type="submit"
@@ -119,9 +145,15 @@ export const VerificationModal: React.FC<VerificationModalProps> = ({
           <span>Didn't receive the code? </span>
           <button
             type="button"
-            onClick={() => {
-              setDigits(['', '', '', '']);
-              inputRefs[0].current?.focus();
+            onClick={async () => {
+              try {
+                await onResend();
+                setDigits(['', '', '', '', '', '']);
+                setErrorMessage('A fresh verification code has been sent to your email.');
+                inputRefs[0].current?.focus();
+              } catch (error) {
+                setErrorMessage(error instanceof Error ? error.message : 'Unable to resend the verification code.');
+              }
             }}
             className="font-bold text-[#8E85FF] hover:underline cursor-pointer"
           >

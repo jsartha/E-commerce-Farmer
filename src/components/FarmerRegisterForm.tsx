@@ -37,18 +37,18 @@ export const FarmerRegisterForm: React.FC<FarmerRegisterFormProps> = ({
   onBack,
   onSubmitSuccess,
 }) => {
-  const [firstName, setFirstName] = useState<string>('Rajesh');
-  const [lastName, setLastName] = useState<string>('Kumar');
-  const [email, setEmail] = useState<string>('rajesh.farmer@example.com');
-  const [phone, setPhone] = useState<string>('9876543210');
-  const [birthDate, setBirthDate] = useState<string>('1988-04-12');
-  const [selectedState, setSelectedState] = useState<string>('Punjab');
-  const [district, setDistrict] = useState<string>('Ludhiana');
-  const [village, setVillage] = useState<string>('Kila Raipur');
-  const [farmSize, setFarmSize] = useState<string>('5 - 10 Acres');
-  const [selectedCrops, setSelectedCrops] = useState<string[]>(['Wheat', 'Rice (Paddy)']);
-  const [password, setPassword] = useState<string>('KisanPass2026#');
-  const [confirmPassword, setConfirmPassword] = useState<string>('KisanPass2026#');
+  const [firstName, setFirstName] = useState<string>('');
+  const [lastName, setLastName] = useState<string>('');
+  const [email, setEmail] = useState<string>('');
+  const [phone, setPhone] = useState<string>('');
+  const [birthDate, setBirthDate] = useState<string>('');
+  const [selectedState, setSelectedState] = useState<string>('');
+  const [district, setDistrict] = useState<string>('');
+  const [village, setVillage] = useState<string>('');
+  const [farmSize, setFarmSize] = useState<string>('');
+  const [selectedCrops, setSelectedCrops] = useState<string[]>([]);
+  const [password, setPassword] = useState<string>('');
+  const [confirmPassword, setConfirmPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -56,15 +56,12 @@ export const FarmerRegisterForm: React.FC<FarmerRegisterFormProps> = ({
 
   const handleStateChange = (st: string) => {
     setSelectedState(st);
-    const districts = STATES_DATA[st] || [];
-    setDistrict(districts[0] || '');
+    setDistrict('');
   };
 
   const toggleCrop = (crop: string) => {
     if (selectedCrops.includes(crop)) {
-      if (selectedCrops.length > 1) {
-        setSelectedCrops(selectedCrops.filter((c) => c !== crop));
-      }
+      setSelectedCrops(selectedCrops.filter((c) => c !== crop));
     } else {
       setSelectedCrops([...selectedCrops, crop]);
     }
@@ -182,7 +179,7 @@ export const FarmerRegisterForm: React.FC<FarmerRegisterFormProps> = ({
               required
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
-              placeholder="Rajesh"
+              placeholder="First name"
               className="w-full px-3.5 py-2.5 text-xs bg-[#FAFAFA] border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-400 focus:bg-white transition-all"
             />
           </div>
@@ -251,10 +248,12 @@ export const FarmerRegisterForm: React.FC<FarmerRegisterFormProps> = ({
               Farm Size *
             </label>
             <select
+              required
               value={farmSize}
               onChange={(e) => setFarmSize(e.target.value)}
               className="w-full px-3.5 py-2.5 text-xs bg-[#FAFAFA] border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:border-slate-400 focus:bg-white transition-all"
             >
+              <option value="" disabled>Select farm size</option>
               <option value="< 2 Acres">&lt; 2 Acres (Marginal)</option>
               <option value="2 - 5 Acres">2 - 5 Acres (Small)</option>
               <option value="5 - 10 Acres">5 - 10 Acres (Medium)</option>
@@ -271,10 +270,12 @@ export const FarmerRegisterForm: React.FC<FarmerRegisterFormProps> = ({
               State *
             </label>
             <select
+              required
               value={selectedState}
               onChange={(e) => handleStateChange(e.target.value)}
               className="w-full px-3.5 py-2.5 text-xs bg-[#FAFAFA] border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:border-slate-400 focus:bg-white transition-all"
             >
+              <option value="" disabled>Select state</option>
               {Object.keys(STATES_DATA).map((st) => (
                 <option key={st} value={st}>
                   {st}
@@ -288,10 +289,13 @@ export const FarmerRegisterForm: React.FC<FarmerRegisterFormProps> = ({
               District *
             </label>
             <select
+              required
+              disabled={!selectedState}
               value={district}
               onChange={(e) => setDistrict(e.target.value)}
               className="w-full px-3.5 py-2.5 text-xs bg-[#FAFAFA] border border-slate-200 rounded-2xl text-slate-900 focus:outline-none focus:border-slate-400 focus:bg-white transition-all"
             >
+              <option value="" disabled>Select district</option>
               {(STATES_DATA[selectedState] || []).map((dst) => (
                 <option key={dst} value={dst}>
                   {dst}
@@ -311,7 +315,7 @@ export const FarmerRegisterForm: React.FC<FarmerRegisterFormProps> = ({
             required
             value={village}
             onChange={(e) => setVillage(e.target.value)}
-            placeholder="e.g. Kila Raipur"
+            placeholder="Village or tehsil"
             className="w-full px-3.5 py-2.5 text-xs bg-[#FAFAFA] border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-400 focus:bg-white transition-all"
           />
         </div>

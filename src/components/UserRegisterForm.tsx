@@ -11,12 +11,12 @@ export const UserRegisterForm: React.FC<UserRegisterFormProps> = ({
   onBack,
   onSubmitSuccess,
 }) => {
-  const [firstName, setFirstName] = useState<string>('Sarthak');
-  const [lastName, setLastName] = useState<string>('Sharma');
-  const [email, setEmail] = useState<string>('jsarthak168@gmail.com');
-  const [birthDate, setBirthDate] = useState<string>('2000-06-15');
-  const [password, setPassword] = useState<string>('SecureKey99#');
-  const [confirmPassword, setConfirmPassword] = useState<string>('SecureKey99#');
+  const [firstName, setFirstName] = useState<string>('');
+  const [lastName, setLastName] = useState<string>('');
+  const [email, setEmail] = useState<string>('');
+  const [birthDate, setBirthDate] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
+  const [confirmPassword, setConfirmPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -122,7 +122,7 @@ export const UserRegisterForm: React.FC<UserRegisterFormProps> = ({
               required
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
-              placeholder="e.g. Sarthak"
+              placeholder="First name"
               className="w-full px-3.5 py-2.5 text-xs bg-[#FAFAFA] border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-400 focus:bg-white transition-all"
             />
           </div>
