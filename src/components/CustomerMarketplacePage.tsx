@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, LogOut, MapPin, ShoppingCart, Star, Leaf, UserRound, PackageCheck, CircleCheck, Clock3, Truck, Wrench, X } from 'lucide-react';
 import { Product } from '../types/dashboard';
 import { UserAccount } from '../types/auth';
-import { getAuthToken, loadAccountData, loadMarketplaceListings, recordMarketplaceTransaction, saveAccountData } from '../lib/api';
+import { getAuthToken, loadAccountData, loadMarketplaceListings, recordFarmerOrder, recordMarketplaceTransaction, saveAccountData } from '../lib/api';
 
 type CustomerOrder = {
   id: string;
@@ -115,7 +115,7 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
   ).length;
   const avgRating = products.length ? (products.reduce((sum, product) => sum + product.rating, 0) / products.length).toFixed(1) : '0.0';
 
-  const placeOrder = (event: React.FormEvent) => {
+  const placeOrder = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!checkoutProduct || !deliveryAddress.trim()) {
       setCheckoutError('Enter a delivery address or rental location.');
@@ -136,6 +136,31 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
       placedAt: new Date().toLocaleString(),
       status: 'Order placed',
     };
+    if (checkoutProduct.sellerType === 'farmer') {
+      if (!checkoutProduct.sellerEmail) {
+        setCheckoutError('This farmer listing is missing its seller account. The order could not be placed.');
+        return;
+      }
+      try {
+        await recordFarmerOrder(checkoutProduct.sellerEmail, {
+          id: order.id,
+          customerName: user.name,
+          customerEmail: user.email,
+          customerPhone: user.phone || '',
+          productName: checkoutProduct.name,
+          productId: checkoutProduct.id,
+          quantity,
+          unit: checkoutProduct.unit,
+          totalPrice: order.total,
+          orderDate: new Date().toISOString(),
+          status: 'Pending',
+          deliveryAddress: order.address,
+        });
+      } catch (error) {
+        setCheckoutError(error instanceof Error ? error.message : 'Could not send the order to the farmer.');
+        return;
+      }
+    }
     setOrders((previous) => [order, ...previous]);
     if (checkoutProduct.sellerType === 'agri-business' && checkoutProduct.sellerEmail) {
       void recordMarketplaceTransaction({

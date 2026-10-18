@@ -1,23 +1,21 @@
 import React from 'react';
-import { Menu, Plus, Bell, Search, MapPin, UserCircle2 } from 'lucide-react';
+import { Menu, Plus, Search, MapPin, UserCircle2 } from 'lucide-react';
 import { FarmerProfile } from '../../types/dashboard';
 
 interface FarmerHeaderProps {
+  role?: 'Farmer' | 'AgriBusiness';
   profile: FarmerProfile;
   onOpenMobileSidebar: () => void;
   onOpenAddProduct: () => void;
-  onViewActivity: () => void;
-  activityCount: number;
   searchQuery: string;
   onSearchChange: (q: string) => void;
 }
 
 export const FarmerHeader: React.FC<FarmerHeaderProps> = ({
+  role = 'Farmer',
   profile,
   onOpenMobileSidebar,
   onOpenAddProduct,
-  onViewActivity,
-  activityCount,
   searchQuery,
   onSearchChange,
 }) => {
@@ -39,7 +37,7 @@ export const FarmerHeader: React.FC<FarmerHeaderProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search crops, orders, listings..."
+            placeholder={`Search ${role === 'Farmer' ? 'crops' : 'equipment'}, orders, listings...`}
             className="w-full pl-9 pr-4 py-2 text-xs bg-white border border-slate-200 focus:border-blue-300 focus:bg-white rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none transition-all"
           />
         </div>
@@ -47,25 +45,13 @@ export const FarmerHeader: React.FC<FarmerHeaderProps> = ({
 
       {/* Right Actions */}
       <div className="flex items-center gap-2 sm:gap-3">
-        {/* Farm Location Pill */}
+        {/* Seller location pill */}
         <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-[#F8F9F5] border border-slate-200/60 rounded-xl text-xs text-slate-700">
           <MapPin className="w-3.5 h-3.5 text-emerald-600" />
           <span>
-            {[profile.village, profile.state].filter(Boolean).join(', ') || 'Add farm location'}
+            {[profile.village, profile.state].filter(Boolean).join(', ') || `Add ${role === 'Farmer' ? 'farm' : 'business'} location`}
           </span>
         </div>
-
-        {/* Activity Notification Bell */}
-        <button
-          onClick={onViewActivity}
-          className="relative p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-          title="Recent session activities"
-        >
-          <Bell className="w-4 h-4" />
-          {activityCount > 0 && (
-            <span className="absolute top-1 right-1 w-2 h-2 bg-[#D2F442] ring-2 ring-white rounded-full"></span>
-          )}
-        </button>
 
         {/* Add Product Button */}
         <button

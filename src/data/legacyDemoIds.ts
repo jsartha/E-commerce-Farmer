@@ -15,13 +15,6 @@ export const LEGACY_DEMO_ORDER_IDS = new Set([
   'ORD-9845',
 ]);
 
-export const LEGACY_DEMO_ACTIVITY_IDS = new Set([
-  'act-1',
-  'act-2',
-  'act-3',
-  'act-4',
-]);
-
 export const LEGACY_DEMO_FARMER_AVATAR =
   'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80';
 

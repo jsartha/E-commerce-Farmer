@@ -7,16 +7,14 @@ import {
   TrendingUp,
   ArrowRight,
   Plus,
-  Clock,
   Sparkles,
 } from 'lucide-react';
-import { Product, Order, ActivityLog, FarmerProfile, DashboardSection } from '../../types/dashboard';
+import { Product, Order, FarmerProfile, DashboardSection } from '../../types/dashboard';
 
 interface DashboardOverviewProps {
   profile: FarmerProfile;
   products: Product[];
   orders: Order[];
-  activities: ActivityLog[];
   onNavigate: (section: DashboardSection) => void;
   onOpenAddProduct: () => void;
 }
@@ -25,7 +23,6 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   profile,
   products,
   orders,
-  activities,
   onNavigate,
   onOpenAddProduct,
 }) => {
@@ -246,44 +243,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           </div>
         </div>
 
-        {/* Right: Live Session Activity Feed (5 cols) */}
-        <div className="lg:col-span-5 bg-white rounded-[28px] border border-slate-200/80 p-5 sm:p-6 shadow-xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-slate-500" />
-                <h3 className="text-sm sm:text-base font-bold text-slate-900">
-                  Recent Session Activity
-                </h3>
-              </div>
-              <button
-                onClick={() => onNavigate('activity')}
-                className="text-xs text-slate-600 hover:text-slate-900 font-semibold cursor-pointer"
-              >
-                Feed
-              </button>
-            </div>
-
-            <div className="space-y-3.5">
-              {activities.slice(0, 4).map((act) => (
-                <div key={act.id} className="flex items-start gap-3 text-xs">
-                  <div className="w-2 h-2 rounded-full bg-[#D2F442] mt-1.5 shrink-0 ring-4 ring-[#D2F442]/20" />
-                  <div className="min-w-0 flex-1">
-                    <h4 className="font-semibold text-slate-900 truncate">{act.title}</h4>
-                    <p className="text-slate-500 text-[11px] mt-0.5 leading-snug">
-                      {act.description}
-                    </p>
-                    <span className="text-[10px] text-slate-400 font-mono mt-1 block">
-                      {act.timestamp}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Quick Ecosystem Connect Prompt */}
-          <div className="mt-4 p-3.5 bg-[#F8F9F5] border border-slate-200/60 rounded-2xl flex items-center justify-between gap-3">
+        <div className="lg:col-span-5 bg-white rounded-[28px] border border-slate-200/80 p-5 sm:p-6 shadow-xs">
+          <div className="p-3.5 bg-[#F8F9F5] border border-slate-200/60 rounded-2xl flex items-center justify-between gap-3">
             <div>
               <span className="text-xs font-bold text-slate-900 block">
                 AgriBusiness Supplies

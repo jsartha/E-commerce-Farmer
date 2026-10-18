@@ -6,7 +6,6 @@ export type DashboardSection =
   | 'listings'
   | 'orders'
   | 'sales'
-  | 'activity'
   | 'marketplace-connect'
   | 'agribusiness-connect';
 
@@ -95,14 +94,6 @@ export interface Order {
   orderDate: string;
   status: OrderStatus;
   deliveryAddress: string;
-}
-
-export interface ActivityLog {
-  id: string;
-  type: 'product_added' | 'product_edited' | 'product_deleted' | 'order_updated' | 'profile_updated';
-  title: string;
-  description: string;
-  timestamp: string;
 }
 
 export interface FarmerProfile {

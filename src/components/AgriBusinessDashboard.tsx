@@ -1,15 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Camera, LayoutDashboard, LogOut, Package, Pencil, Plus, Sprout, Trash2, Tractor, Wrench } from 'lucide-react';
+import { Camera, Package, Pencil, Plus, Sprout, Trash2, Wrench } from 'lucide-react';
 import { UserAccount } from '../types/auth';
-import { AGRI_BUSINESS_CATEGORIES, AgriBusinessCategory, MarketplaceTransaction, Product } from '../types/dashboard';
-import { getAuthToken, loadAccountData, loadMarketplaceTransactions, saveAccountData, updateMarketplaceTransaction } from '../lib/api';
+import { AGRI_BUSINESS_CATEGORIES, AgriBusinessCategory, DashboardSection, FarmerProfile, MarketplaceTransaction, Product } from '../types/dashboard';
+import { getAuthToken, loadAccountData, loadMarketplaceTransactions, saveAccountData, updateAccountProfile, updateMarketplaceTransaction } from '../lib/api';
 import { DashboardBreakdown, RoleDashboardOverview } from './RoleDashboardOverview';
+import { FarmerHeader } from './farmer/FarmerHeader';
+import { FarmerSidebar } from './farmer/FarmerSidebar';
 
 type AgriBusinessSnapshot = { products: Product[] };
 
 interface AgriBusinessDashboardProps {
   user: UserAccount;
   onLogout: () => void;
+  onUpdateUser: (user: UserAccount) => void;
 }
 
 const EMPTY_FORM = {
@@ -24,11 +27,19 @@ const EMPTY_FORM = {
   status: 'In Stock' as Product['status'],
 };
 
-type AgriBusinessView = 'overview' | 'products' | 'add-product';
+type AgriBusinessView = Extract<DashboardSection, 'overview' | 'profile' | 'products' | 'add-product' | 'listings' | 'orders'>;
 
-export const AgriBusinessDashboard: React.FC<AgriBusinessDashboardProps> = ({ user, onLogout }) => {
+export const AgriBusinessDashboard: React.FC<AgriBusinessDashboardProps> = ({ user, onLogout, onUpdateUser }) => {
   const photoInputRef = useRef<HTMLInputElement | null>(null);
   const [currentView, setCurrentView] = useState<AgriBusinessView>('overview');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [profileName, setProfileName] = useState(user.name);
+  const [businessName, setBusinessName] = useState(user.businessName || '');
+  const [phone, setPhone] = useState(user.phone || '');
+  const [businessAddress, setBusinessAddress] = useState(user.businessAddress || '');
+  const [district, setDistrict] = useState(user.district || '');
+  const [state, setState] = useState(user.state || '');
   const [products, setProducts] = useState<Product[]>([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -37,6 +48,21 @@ export const AgriBusinessDashboard: React.FC<AgriBusinessDashboardProps> = ({ us
   const [loaded, setLoaded] = useState(() => !getAuthToken());
   const [transactions, setTransactions] = useState<MarketplaceTransaction[]>([]);
   const [transactionsLoaded, setTransactionsLoaded] = useState(false);
+
+  const businessProfile: FarmerProfile = {
+    name: user.name,
+    email: user.email,
+    phone: user.phone || '',
+    village: user.district || user.businessAddress || '',
+    district: user.district || '',
+    state: user.state || '',
+    farmName: user.businessName || 'Business profile',
+    farmSize: '',
+    crops: [],
+    avatar: user.avatar || '',
+    joinedDate: '',
+    sellerRating: 0,
+  };
 
   useEffect(() => {
     if (!getAuthToken()) return;
@@ -235,6 +261,9 @@ export const AgriBusinessDashboard: React.FC<AgriBusinessDashboardProps> = ({ us
   )
     .map(([label, value]) => ({ label, value }))
     .sort((first, second) => second.value - first.value);
+  const filteredProducts = products.filter((product) =>
+    `${product.name} ${product.category}`.toLowerCase().includes(searchQuery.trim().toLowerCase())
+  );
 
   const setTransactionStatus = async (transaction: MarketplaceTransaction, status: MarketplaceTransaction['status']) => {
     try {
@@ -246,73 +275,105 @@ export const AgriBusinessDashboard: React.FC<AgriBusinessDashboardProps> = ({ us
     }
   };
 
-  return (
-    <main className="min-h-screen bg-[#eef1f5] px-3 py-4 sm:px-6 lg:pl-[17rem]">
-      <aside className="fixed inset-y-0 left-0 z-20 hidden w-64 flex-col border-r border-slate-200 bg-[#f7f8fa] p-5 lg:flex">
-        <div className="flex items-center gap-3 border-b border-slate-200 pb-6">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white"><Sprout className="h-5 w-5" /></div>
-          <div><p className="text-sm font-bold text-slate-900">FarmConnect</p><p className="text-[11px] text-slate-500">AgriBusiness workspace</p></div>
+  const openSection = (section: DashboardSection) => {
+    switch (section) {
+      case 'add-product':
+        if (!editingId) resetForm();
+        setCurrentView('add-product');
+        break;
+      case 'overview':
+      case 'profile':
+      case 'products':
+      case 'listings':
+      case 'orders':
+        setCurrentView(section);
+        break;
+      default:
+        break;
+    }
+  };
+
+  const saveBusinessProfile = async (event: React.FormEvent) => {
+    event.preventDefault();
+    try {
+      const { user: updatedUser } = await updateAccountProfile({
+        name: profileName.trim(),
+        businessName: businessName.trim(),
+        phone: phone.trim(),
+        businessAddress: businessAddress.trim(),
+        district: district.trim(),
+        state: state.trim(),
+      });
+      onUpdateUser(updatedUser);
+      setPersistenceError('');
+    } catch (profileError) {
+      setPersistenceError(profileError instanceof Error ? profileError.message : 'Could not save your business profile.');
+    }
+  };
+
+  const renderTransactions = () => (
+    <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="font-semibold text-slate-900">Farmer &amp; User Requests</h2>
+          <p className="mt-1 text-xs text-slate-500">Purchase and rental requests from farmers and customers for your listings.</p>
         </div>
-        <nav aria-label="AgriBusiness dashboard" className="mt-6 flex-1 space-y-1">
-          {([
-            ['overview', 'Sales Overview', LayoutDashboard],
-            ['products', 'My Products', Package],
-            ['add-product', editingId ? 'Edit Product' : 'Add Product', Plus],
-          ] as const).map(([view, label, Icon]) => (
-            <button key={view} type="button" onClick={() => {
-              setCurrentView(view);
-              if (view === 'add-product' && !editingId) resetForm();
-            }} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-semibold transition ${currentView === view ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'}`}>
-              <Icon className="h-4 w-4" />{label}
-            </button>
-          ))}
-        </nav>
-        <div className="flex items-center gap-3 border-t border-slate-200 pt-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-700">{(user.businessName || user.name).slice(0, 1)}</div>
-          <div className="min-w-0"><p className="truncate text-xs font-semibold text-slate-800">{user.businessName || user.name}</p><p className="truncate text-[10px] text-slate-500">{user.email}</p></div>
-        </div>
-      </aside>
-      <div className="mx-auto max-w-7xl space-y-6">
-        <header className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#D2F442] text-slate-950">
-                <Tractor className="h-7 w-7" />
-              </div>
+        <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700">{transactions.length} total</span>
+      </div>
+      {transactions.length === 0 ? (
+        <p className="mt-4 rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">No requests for your listings yet.</p>
+      ) : (
+        <div className="mt-4 space-y-3">
+          {transactions.map((transaction) => (
+            <article key={transaction.id} className="flex flex-col gap-3 rounded-2xl bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-xs font-semibold text-blue-700">AgriBusiness workspace</p>
-                <h1 className="text-2xl font-bold tracking-tight text-slate-900">{currentView === 'overview' ? 'Sales Overview' : user.businessName || user.name}</h1>
-                <p className="mt-1 text-sm text-slate-500">Welcome back, {user.businessName || user.name}. Manage listings and farmer requests.</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">{transaction.transactionType} · {transaction.id}</p>
+                <h3 className="mt-1 font-bold text-slate-900">{transaction.productName}</h3>
+                <p className="mt-1 text-xs text-slate-500">{transaction.buyerName} · {transaction.buyerEmail} · {transaction.quantity} {transaction.unit} · {transaction.location}</p>
+                <p className="mt-1 text-xs text-slate-500">{new Date(transaction.createdAt).toLocaleString()}</p>
               </div>
-            </div>
-            <button type="button" onClick={onLogout} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white hover:bg-slate-800">
-              <LogOut className="h-4 w-4" /> Sign out
-            </button>
-          </div>
-          <nav aria-label="AgriBusiness pages" className="mt-5 flex flex-wrap gap-2 border-t border-slate-100 pt-4 lg:hidden">
-            {([
-              ['overview', 'Sales Overview', LayoutDashboard],
-              ['products', 'My Products', Package],
-              ['add-product', editingId ? 'Edit Product' : 'Add Product', Plus],
-            ] as const).map(([view, label, Icon]) => (
-              <button
-                key={view}
-                type="button"
-                onClick={() => {
-                  setCurrentView(view);
-                  if (view === 'add-product' && !editingId) resetForm();
-                }}
-                className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-colors ${
-                  currentView === view
-                    ? 'bg-[#D2F442] text-slate-950'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                <Icon className="h-4 w-4" />{label}
-              </button>
-            ))}
-          </nav>
-        </header>
+              <div className="flex flex-wrap items-center gap-2">
+                <strong className="mr-1 text-sm text-slate-900">₹{transaction.total.toLocaleString('en-IN')}</strong>
+                <span className="rounded-full bg-white px-3 py-1.5 text-xs font-bold">{transaction.status}</span>
+                {transaction.status !== 'Completed' && transaction.status !== 'Cancelled' && (
+                  <>
+                    <button type="button" onClick={() => void setTransactionStatus(transaction, 'Accepted')} className="rounded-lg bg-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-800">Accept</button>
+                    <button type="button" onClick={() => void setTransactionStatus(transaction, 'Completed')} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white">Complete</button>
+                    <button type="button" onClick={() => void setTransactionStatus(transaction, 'Cancelled')} className="rounded-lg bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">Decline</button>
+                  </>
+                )}
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+      {!transactionsLoaded && <p role="status" className="mt-3 text-xs text-slate-500">Loading sales and requests…</p>}
+    </section>
+  );
+
+  return (
+    <div className="min-h-screen bg-[#eef1f5] text-slate-900 font-sans flex antialiased">
+      <FarmerSidebar
+        role="AgriBusiness"
+        currentSection={currentView}
+        onSelectSection={openSection}
+        profile={businessProfile}
+        ordersCount={transactions.length}
+        productsCount={products.length}
+        onLogout={onLogout}
+        isOpenMobile={mobileSidebarOpen}
+        onCloseMobile={() => setMobileSidebarOpen(false)}
+      />
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+        <FarmerHeader
+          role="AgriBusiness"
+          profile={businessProfile}
+          onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
+          onOpenAddProduct={() => openSection('add-product')}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+        />
+        <main className="flex-1 p-4 sm:p-8 max-w-7xl mx-auto w-full space-y-6">
 
         {persistenceError && (
           <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{persistenceError}</p>
@@ -323,7 +384,7 @@ export const AgriBusinessDashboard: React.FC<AgriBusinessDashboardProps> = ({ us
           <RoleDashboardOverview
             role="AgriBusiness"
             name={user.businessName || user.name}
-            description={`${user.district || 'Local'}${user.state ? `, ${user.state}` : ''} · Your tools and equipment reach farmers through the shared marketplace.`}
+            description={`${user.district || 'Local'}${user.state ? `, ${user.state}` : ''} · Your tools and equipment reach farmers and customers through the shared marketplace.`}
             metrics={[
               { label: 'Completed revenue', value: `₹${completedRevenue.toLocaleString('en-IN')}`, detail: 'Completed sales & rentals' },
               { label: 'Open requests', value: String(pendingTransactions.length), detail: `₹${pendingValue.toLocaleString('en-IN')} potential value` },
@@ -333,7 +394,7 @@ export const AgriBusinessDashboard: React.FC<AgriBusinessDashboardProps> = ({ us
             funnelTitle="Marketplace activity"
             funnel={[
               { label: 'Products listed', value: String(products.length), detail: 'Available to farmers' },
-              { label: 'Requests received', value: String(transactions.length), detail: 'Purchase & rental requests' },
+              { label: 'Requests received', value: String(transactions.length), detail: 'From farmers & customers' },
               { label: 'In progress', value: String(pendingTransactions.length), detail: 'Awaiting completion' },
               { label: 'Completed', value: String(completedTransactions.length), detail: 'Fulfilled requests' },
             ]}
@@ -344,47 +405,46 @@ export const AgriBusinessDashboard: React.FC<AgriBusinessDashboardProps> = ({ us
             salesTrend={monthlySales.map(({ label, sales }) => ({ label, value: sales }))}
             topPerformers={agriTopPerformers}
             onAddListing={() => { resetForm(); setCurrentView('add-product'); }}
-            onViewOrders={() => document.getElementById('agri-business-requests')?.scrollIntoView({ behavior: 'smooth' })}
+            onViewOrders={() => setCurrentView('orders')}
           />
-          <section id="agri-business-requests" className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h2 className="font-semibold text-slate-900">Your farmer requests</h2>
-                  <p className="mt-1 text-xs text-slate-500">Requests for your listings, visible only in your AgriBusiness account.</p>
-                </div>
-                <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700">{transactions.length} total</span>
-              </div>
-              {transactions.length === 0 ? (
-                <p className="mt-4 rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">No requests for your listings yet.</p>
-              ) : (
-                <div className="mt-4 space-y-3">
-                  {transactions.map((transaction) => (
-                    <article key={transaction.id} className="flex flex-col gap-3 rounded-2xl bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">{transaction.transactionType} · {transaction.id}</p>
-                        <h3 className="mt-1 font-bold text-slate-900">{transaction.productName}</h3>
-                        <p className="mt-1 text-xs text-slate-500">{transaction.buyerName} · {transaction.buyerEmail} · {transaction.quantity} {transaction.unit} · {transaction.location}</p>
-                        <p className="mt-1 text-xs text-slate-500">{new Date(transaction.createdAt).toLocaleString()}</p>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <strong className="mr-1 text-sm text-slate-900">₹{transaction.total.toLocaleString('en-IN')}</strong>
-                        <span className="rounded-full bg-white px-3 py-1.5 text-xs font-bold">{transaction.status}</span>
-                        {transaction.status !== 'Completed' && transaction.status !== 'Cancelled' && (
-                          <>
-                            <button type="button" onClick={() => void setTransactionStatus(transaction, 'Accepted')} className="rounded-lg bg-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-800">Accept</button>
-                            <button type="button" onClick={() => void setTransactionStatus(transaction, 'Completed')} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white">Complete</button>
-                            <button type="button" onClick={() => void setTransactionStatus(transaction, 'Cancelled')} className="rounded-lg bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">Decline</button>
-                          </>
-                        )}
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              )}
-              {!transactionsLoaded && <p role="status" className="mt-3 text-xs text-slate-500">Loading sales and requests…</p>}
-          </section>
           </>
         )}
+
+        {currentView === 'profile' && (
+          <section className="mx-auto max-w-3xl rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+            <div className="mb-5">
+              <p className="text-xs font-semibold text-blue-700">AgriBusiness workspace</p>
+              <h2 className="mt-1 text-xl font-bold text-slate-900">Business profile</h2>
+              <p className="mt-1 text-sm text-slate-500">Keep your business details up to date for farmers and buyers.</p>
+            </div>
+            <form onSubmit={(event) => void saveBusinessProfile(event)} className="grid gap-4 sm:grid-cols-2">
+              <label className="text-xs font-semibold text-slate-700">Contact name
+                <input required value={profileName} onChange={(event) => setProfileName(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+              </label>
+              <label className="text-xs font-semibold text-slate-700">Business name
+                <input value={businessName} onChange={(event) => setBusinessName(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+              </label>
+              <label className="text-xs font-semibold text-slate-700">Email
+                <input readOnly value={user.email} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-500" />
+              </label>
+              <label className="text-xs font-semibold text-slate-700">Phone
+                <input type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+              </label>
+              <label className="text-xs font-semibold text-slate-700 sm:col-span-2">Business address
+                <input value={businessAddress} onChange={(event) => setBusinessAddress(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+              </label>
+              <label className="text-xs font-semibold text-slate-700">District
+                <input value={district} onChange={(event) => setDistrict(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+              </label>
+              <label className="text-xs font-semibold text-slate-700">State
+                <input value={state} onChange={(event) => setState(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+              </label>
+              <button type="submit" className="rounded-xl bg-[#D2F442] px-4 py-3 text-sm font-bold text-slate-950 sm:col-span-2">Save business profile</button>
+            </form>
+          </section>
+        )}
+
+        {currentView === 'orders' && renderTransactions()}
 
         {currentView === 'add-product' && <section className="mx-auto max-w-3xl">
           <form onSubmit={addListing} className="space-y-4 rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
@@ -454,20 +514,21 @@ export const AgriBusinessDashboard: React.FC<AgriBusinessDashboardProps> = ({ us
           </form>
         </section>}
 
-        {currentView === 'products' && <section className="space-y-4">
+        {(currentView === 'products' || currentView === 'listings') && <section className="space-y-4">
             <div>
-              <h2 className="text-xl font-black text-slate-900">My Agri-Tools Products</h2>
+              <h2 className="text-xl font-black text-slate-900">{currentView === 'products' ? 'My Agri-Tools Products' : 'My Listings'}</h2>
               <p className="mt-1 text-sm text-slate-500">Manage the equipment you sell or rent to farmers and customers.</p>
             </div>
-            {products.length === 0 ? (
+            {filteredProducts.length === 0 ? (
               <div className="rounded-[28px] border border-dashed border-slate-300 bg-white p-10 text-center">
                 <Wrench className="mx-auto h-9 w-9 text-slate-400" />
-                <h3 className="mt-3 font-bold text-slate-900">No tools listed yet</h3>
-                <p className="mt-1 text-sm text-slate-500">Add your first tool for sale or equipment rental.</p>
+                <h3 className="mt-3 font-bold text-slate-900">{products.length ? 'No matching listings' : 'No tools listed yet'}</h3>
+                <p className="mt-1 text-sm text-slate-500">{products.length ? 'Try another search term.' : 'Add your first tool for sale or equipment rental.'}</p>
+                {!products.length && <button type="button" onClick={() => openSection('add-product')} className="mt-4 rounded-xl bg-[#D2F442] px-4 py-2.5 text-sm font-bold text-slate-950">Add first product</button>}
               </div>
             ) : (
-              <div className="grid gap-4 sm:grid-cols-2">
-                {products.map((product) => (
+              <div className={currentView === 'products' ? 'grid gap-4 sm:grid-cols-2' : 'space-y-3'}>
+                {filteredProducts.map((product) => (
                   <article key={product.id} className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
                     <img src={product.image} alt={product.name} className="h-40 w-full bg-slate-100 object-cover" />
                     <div className="space-y-3 p-4">
@@ -498,7 +559,8 @@ export const AgriBusinessDashboard: React.FC<AgriBusinessDashboardProps> = ({ us
               Farmer harvest products are not displayed in this seller dashboard.
             </p>
           </section>}
+        </main>
       </div>
-    </main>
+    </div>
   );
 };

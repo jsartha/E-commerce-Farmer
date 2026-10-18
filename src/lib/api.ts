@@ -1,8 +1,9 @@
 import { UserAccount } from '../types/auth';
-import { MarketplaceTransaction, Product } from '../types/dashboard';
+import { MarketplaceTransaction, Order, Product } from '../types/dashboard';
 import { LEGACY_DEMO_ACCOUNT_EMAILS, LEGACY_DEMO_PRODUCT_IDS } from '../data/legacyDemoIds';
 
 const TOKEN_KEY = 'farmer-marketplace-session-email';
+const SERVER_SESSION_KEY = 'farmer-marketplace-server-session';
 const SESSION_USER_KEY = 'farmer-marketplace-session-user';
 const ACCOUNTS_KEY = 'farmer-marketplace-accounts';
 const DATA_KEY_PREFIX = 'farmer-marketplace-data:';
@@ -42,9 +43,6 @@ const hashPassword = async (password: string, saltHex?: string) => {
 export const registerAccount = async (userData: Partial<UserAccount>, password: string) => {
   const email = userData.email?.trim().toLowerCase();
   if (!email || !userData.name?.trim()) throw new Error('Name and email are required.');
-  if (readAccounts().some((account) => account.user.email.toLowerCase() === email)) {
-    throw new Error('This email is already registered.');
-  }
   if (password.length < 8) throw new Error('Password must contain at least 8 characters.');
 
   const user: UserAccount = {
@@ -54,68 +52,117 @@ export const registerAccount = async (userData: Partial<UserAccount>, password: 
     provider: 'email',
     accountType: userData.accountType || 'user',
   };
+  const response = await apiRequest<{ user: UserAccount; sessionToken: string }>('/api/auth/register', {
+    user,
+    password,
+  });
   const accounts = readAccounts();
-  accounts.push({ user, ...await hashPassword(password) });
+  const accountIndex = accounts.findIndex((account) => account.user.email.toLowerCase() === email);
+  const credentials = await hashPassword(password);
+  if (accountIndex < 0) accounts.push({ user: response.user, ...credentials });
+  else accounts[accountIndex] = { user: response.user, ...credentials };
   localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
-  return { user, token: email };
+  return { user: response.user, token: email, sessionToken: response.sessionToken };
 };
 
-const apiRequest = async <T,>(path: string, body: Record<string, unknown> = {}) => {
-  const response = await fetch(path, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
+const apiRequest = async <T,>(
+  path: string,
+  body?: Record<string, unknown>,
+  method = 'POST'
+) => {
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(localStorage.getItem(SERVER_SESSION_KEY)
+          ? { Authorization: `Bearer ${localStorage.getItem(SERVER_SESSION_KEY)}` }
+          : {}),
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+  } catch {
+    throw new Error('Cannot reach the application backend. Open a second terminal and run `npm run server`.');
+  }
 
-  const payload = await response.json().catch(() => ({}));
+  const responseText = await response.text();
+  let payload: { error?: string } = {};
+  try {
+    payload = JSON.parse(responseText) as { error?: string };
+  } catch {
+    if (response.ok) throw new Error('The application backend returned an invalid response.');
+  }
   if (!response.ok) {
-    throw new Error(payload.error || 'Request failed.');
+    throw new Error(
+      payload.error
+      || (response.status === 502 || response.status === 503
+        ? 'The Node.js application backend is not running. Open a second terminal and run `npm run server`.'
+        : `The application backend request failed (HTTP ${response.status}). Check the Node.js server.`)
+    );
   }
 
   return payload as T;
 };
 
-export const requestEmailVerification = async (email: string, name?: string) => {
-  const normalizedEmail = email.trim().toLowerCase();
-  if (!normalizedEmail) throw new Error('Email is required.');
-  return apiRequest<{ success: boolean; message: string }>('/api/send-verification', {
-    email: normalizedEmail,
-    name: name || 'User',
-  });
+export const requestPasswordReset = async (emailValue: string) => {
+  const email = emailValue.trim().toLowerCase();
+  if (!email) throw new Error('Email is required.');
+  return apiRequest<{ success: boolean; message: string }>('/api/send-password-reset', { email });
 };
 
-export const verifyEmailCode = async (email: string, code: string) => {
-  const normalizedEmail = email.trim().toLowerCase();
-  if (!normalizedEmail || !code.trim()) {
-    throw new Error('Verification code is required.');
-  }
+export const resetAccountPassword = async (emailValue: string, code: string, newPassword: string) => {
+  const email = emailValue.trim().toLowerCase();
+  if (!email || !code.trim()) throw new Error('Email and reset code are required.');
+  if (newPassword.length < 8) throw new Error('Password must contain at least 8 characters.');
 
-  return apiRequest<{ success: boolean; message: string }>('/api/verify-code', {
-    email: normalizedEmail,
+  await apiRequest<{ success: boolean }>('/api/reset-password', {
+    email,
     code: code.trim(),
+    newPassword,
   });
+
+  const accounts = readAccounts();
+  const accountIndex = accounts.findIndex((account) => account.user.email.toLowerCase() === email);
+  if (accountIndex >= 0) {
+    accounts[accountIndex] = { ...accounts[accountIndex], ...await hashPassword(newPassword) };
+    localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
+  }
+  return { success: true };
 };
 
 export const loginAccount = async (emailValue: string, password: string) => {
   const email = emailValue.trim().toLowerCase();
-  const account = readAccounts().find((entry) => entry.user.email.toLowerCase() === email);
-  if (!account || account.passwordHash !== (await hashPassword(password, account.passwordSalt)).passwordHash) {
-    throw new Error('Incorrect email or password.');
+  let response: { user: UserAccount; sessionToken: string };
+  try {
+    response = await apiRequest<{ user: UserAccount; sessionToken: string }>('/api/auth/login', {
+      email,
+      password,
+    });
+  } catch (loginError) {
+    const legacyAccount = readAccounts().find((entry) => entry.user.email.toLowerCase() === email);
+    if (
+      !legacyAccount?.passwordSalt
+      || legacyAccount.passwordHash !== (await hashPassword(password, legacyAccount.passwordSalt)).passwordHash
+    ) {
+      throw loginError;
+    }
+    response = await apiRequest<{ user: UserAccount; sessionToken: string }>('/api/auth/register', {
+      user: legacyAccount.user,
+      password,
+    });
   }
-  saveAuthToken(email, account.user);
-  return { user: account.user, token: email };
+  return { user: response.user, token: email, sessionToken: response.sessionToken };
 };
 
 export const loadCurrentAccount = async () => {
-  const user = localStorage.getItem(SESSION_USER_KEY);
-  if (!user) throw new Error('No saved session.');
-  return { user: JSON.parse(user) as UserAccount };
+  if (!localStorage.getItem(SERVER_SESSION_KEY)) throw new Error('No saved session.');
+  return apiRequest<{ user: UserAccount }>('/api/auth/session', undefined, 'GET');
 };
 
-export const saveAuthToken = (token: string, user?: UserAccount) => {
+export const saveAuthToken = (token: string, user?: UserAccount, sessionToken?: string) => {
   localStorage.setItem(TOKEN_KEY, token.trim().toLowerCase());
+  if (sessionToken) localStorage.setItem(SERVER_SESSION_KEY, sessionToken);
   if (user) {
     localStorage.setItem(SESSION_USER_KEY, JSON.stringify(user));
     const accounts = readAccounts();
@@ -130,7 +177,17 @@ export const saveAuthToken = (token: string, user?: UserAccount) => {
 };
 
 export const clearAuthToken = () => {
+  const sessionToken = localStorage.getItem(SERVER_SESSION_KEY);
+  if (sessionToken) {
+    void fetch('/api/auth/logout', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${sessionToken}` },
+    }).catch((error: unknown) => {
+      console.error('Could not revoke the server session:', error);
+    });
+  }
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(SERVER_SESSION_KEY);
   localStorage.removeItem(SESSION_USER_KEY);
 };
 
@@ -172,11 +229,9 @@ export const clearLegacyDemoData = () => {
 export const getAuthToken = () => localStorage.getItem(TOKEN_KEY);
 
 export const updateAccountProfile = async (profile: Partial<UserAccount>) => {
-  const email = getAuthToken();
-  const currentUser = await loadCurrentAccount().then(({ user }) => user);
-  const user = { ...currentUser, ...profile, email: currentUser.email };
+  const { user } = await apiRequest<{ user: UserAccount }>('/api/auth/profile', { profile }, 'PATCH');
   const accounts = readAccounts();
-  const accountIndex = accounts.findIndex((entry) => entry.user.email.toLowerCase() === (email || '').toLowerCase());
+  const accountIndex = accounts.findIndex((entry) => entry.user.email.toLowerCase() === user.email.toLowerCase());
   if (accountIndex >= 0) {
     accounts[accountIndex] = { ...accounts[accountIndex], user };
     localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
@@ -195,18 +250,48 @@ const readUserData = (email: string): Record<string, unknown> => {
 };
 
 export const loadAccountData = async <T,>(key: string) => {
-  const email = getAuthToken();
-  if (!email) return { data: null as T | null };
-  return { data: (readUserData(email)[key] as T | undefined) || null };
+  if (!getAuthToken()) return { data: null as T | null };
+  return apiRequest<{ data: T | null }>(`/api/account-data/${encodeURIComponent(key)}`, undefined, 'GET');
 };
 
 export const saveAccountData = async <T,>(key: string, data: T) => {
+  if (!getAuthToken()) throw new Error('Sign in to save account data.');
+  return apiRequest<{ data: T }>(`/api/account-data/${encodeURIComponent(key)}`, { data }, 'PUT');
+};
+
+export const recordFarmerOrder = async (sellerEmail: string, order: Order) => {
+  return apiRequest<{ order: Order }>('/api/orders', {
+    id: order.id,
+    sellerEmail: sellerEmail.trim().toLowerCase(),
+    productId: order.productId,
+    productName: order.productName,
+    quantity: order.quantity,
+    unit: order.unit,
+    unitPrice: order.quantity ? order.totalPrice / order.quantity : 0,
+    deliveryAddress: order.deliveryAddress,
+  });
+};
+
+export const loadFarmerOrders = async () =>
+  apiRequest<{ orders: Order[] }>('/api/farmer/orders', undefined, 'GET');
+
+export const updateFarmerOrderStatus = async (orderId: string, status: Order['status']) =>
+  apiRequest<{ order: Order }>(`/api/farmer/orders/${encodeURIComponent(orderId)}/status`, { status }, 'PATCH');
+
+export const migrateLegacyAccountData = async () => {
   const email = getAuthToken();
-  if (!email) throw new Error('Sign in to save account data.');
-  const userData = readUserData(email);
-  userData[key] = data;
-  localStorage.setItem(`${DATA_KEY_PREFIX}${email.toLowerCase()}`, JSON.stringify(userData));
-  return { data };
+  if (!email) return;
+  const legacyData = readUserData(email);
+  for (const key of [
+    'farmer-dashboard',
+    'agri-business-dashboard',
+    'customer-orders',
+    'farmer-agri-orders',
+  ]) {
+    if (!Object.hasOwn(legacyData, key)) continue;
+    const { data } = await loadAccountData(key);
+    if (data === null) await saveAccountData(key, legacyData[key]);
+  }
 };
 
 export const loadMarketplaceTransactions = async (sellerEmail: string) => {
@@ -266,35 +351,8 @@ export const updateMarketplaceTransaction = async (
 };
 
 export const loadMarketplaceListings = async () => {
-  const products = readAccounts().flatMap<Product>((account): Product[] => {
-    if (account.user.accountType === 'farmer') {
-      const snapshot = readUserData(account.user.email)['farmer-dashboard'] as { products?: Product[] } | undefined;
-      return Array.isArray(snapshot?.products)
-        ? snapshot.products
-          .filter((product) => !LEGACY_DEMO_PRODUCT_IDS.has(product.id))
-          .map((product) => ({
-            ...product,
-            sellerType: 'farmer' as const,
-            sellerEmail: account.user.email,
-            sellerName: account.user.name,
-          }))
-        : [];
-    }
-    if (account.user.accountType === 'agri-business') {
-      const snapshot = readUserData(account.user.email)['agri-business-dashboard'] as { products?: Product[] } | undefined;
-      return Array.isArray(snapshot?.products)
-        ? snapshot.products
-          .filter((product) => !LEGACY_DEMO_PRODUCT_IDS.has(product.id))
-          .map((product) => ({
-            ...product,
-            sellerType: 'agri-business' as const,
-            sellerName: account.user.businessName || account.user.name,
-            sellerLocation: [account.user.district, account.user.state].filter(Boolean).join(', '),
-            sellerEmail: account.user.email,
-          }))
-        : [];
-    }
-    return [];
-  });
-  return { products };
+  const { products } = await apiRequest<{ products: Product[] }>('/api/marketplace/listings', undefined, 'GET');
+  return {
+    products: products.filter((product) => !LEGACY_DEMO_PRODUCT_IDS.has(product.id)),
+  };
 };

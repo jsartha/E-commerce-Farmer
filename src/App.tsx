@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Eye, EyeOff, Check, LogOut, CheckCircle2, Sprout, Wrench, User } from 'lucide-react';
 import { AuthTab, AccountType, UserAccount } from './types/auth';
 import { GoogleModal } from './components/GoogleModal';
-import { VerificationModal } from './components/VerificationModal';
+import { PasswordResetModal } from './components/PasswordResetModal';
 import { AccountTypeSelector } from './components/AccountTypeSelector';
 import { UserRegisterForm } from './components/UserRegisterForm';
 import { FarmerRegisterForm } from './components/FarmerRegisterForm';
@@ -10,7 +10,7 @@ import { AgriToolsRegisterForm } from './components/AgriToolsRegisterForm';
 import { FarmerDashboard } from './components/farmer/FarmerDashboard';
 import { AgriBusinessDashboard } from './components/AgriBusinessDashboard';
 import { CustomerMarketplacePage } from './components/CustomerMarketplacePage';
-import { clearAuthToken, clearLegacyDemoData, getAuthToken, loadCurrentAccount, loginAccount, registerAccount, requestEmailVerification, saveAuthToken, updateAccountProfile, verifyEmailCode } from './lib/api';
+import { clearAuthToken, clearLegacyDemoData, getAuthToken, loadCurrentAccount, loginAccount, migrateLegacyAccountData, registerAccount, requestPasswordReset, resetAccountPassword, saveAuthToken, updateAccountProfile } from './lib/api';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<AuthTab>('login');
@@ -23,10 +23,10 @@ export default function App() {
   const [rememberMe, setRememberMe] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginNotice, setLoginNotice] = useState<string | null>(null);
 
   const [googleModalOpen, setGoogleModalOpen] = useState<boolean>(false);
-  const [verificationModalOpen, setVerificationModalOpen] = useState<boolean>(false);
-  const [pendingUser, setPendingUser] = useState<UserAccount | null>(null);
+  const [passwordResetModalOpen, setPasswordResetModalOpen] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
   const profileImageInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -74,13 +74,16 @@ export default function App() {
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
+    setLoginNotice(null);
     setIsSubmitting(true);
     try {
       const normalizedEmail = email.trim().toLowerCase();
       const response = await loginAccount(normalizedEmail, password);
-      saveAuthToken(response.token, response.user);
+      saveAuthToken(response.token, response.user, response.sessionToken);
+      await migrateLegacyAccountData();
       setCurrentUser(response.user);
     } catch (error) {
+      clearAuthToken();
       setLoginError(error instanceof Error ? error.message : 'Could not sign in.');
     } finally {
       setIsSubmitting(false);
@@ -105,31 +108,28 @@ export default function App() {
       productCategories: userData.productCategories,
     };
 
-    const response = await registerAccount(newUserData, passwordValue || '');
-    await requestEmailVerification(response.user.email, response.user.name);
-    setPendingUser(response.user);
-    setVerificationModalOpen(true);
+    const normalizedEmail = newUserData.email?.trim().toLowerCase();
+    if (!normalizedEmail) throw new Error('A valid email address is required.');
+    if (!passwordValue) throw new Error('Password is required.');
+    const registration: UserAccount = {
+      ...newUserData,
+      name: newUserData.name || 'User',
+      email: normalizedEmail,
+      provider: 'email',
+      accountType: newUserData.accountType || selectedAccountType || 'user',
+    };
+    const response = await registerAccount(registration, passwordValue);
+    saveAuthToken(response.token, response.user, response.sessionToken);
+    await migrateLegacyAccountData();
+    setCurrentUser(response.user);
+    setSelectedAccountType(null);
     return true;
   };
 
-  const handleVerificationSuccess = async (code: string) => {
-    const verifiedUser = pendingUser || {
-      name: 'User',
-      email,
-      provider: 'email',
-      accountType: 'user',
-    };
-
-    await verifyEmailCode(verifiedUser.email, code);
-    saveAuthToken(verifiedUser.email, verifiedUser);
-    setCurrentUser(verifiedUser);
-    setPendingUser(null);
-    setSelectedAccountType(null);
-  };
-
-  const handleVerificationResend = async () => {
-    const userEmail = pendingUser?.email || email;
-    await requestEmailVerification(userEmail, pendingUser?.name || 'User');
+  const handlePasswordResetComplete = () => {
+    setPassword('');
+    setLoginError(null);
+    setLoginNotice('Your password has been updated. Sign in with your new password.');
   };
 
   const handleLogout = () => {
@@ -168,7 +168,13 @@ export default function App() {
   }
 
   if (currentUser && currentUser.accountType === 'agri-business') {
-    return <AgriBusinessDashboard user={currentUser} onLogout={handleLogout} />;
+    return (
+      <AgriBusinessDashboard
+        user={currentUser}
+        onLogout={handleLogout}
+        onUpdateUser={setCurrentUser}
+      />
+    );
   }
 
   // Customers can browse farmer produce and agricultural tools, including equipment rentals.
@@ -446,6 +452,11 @@ export default function App() {
                       {loginError}
                     </div>
                   )}
+                  {loginNotice && (
+                    <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-700">
+                      {loginNotice}
+                    </div>
+                  )}
                   <div>
                     <label className="mb-1.5 block text-xs font-medium text-slate-700">Email Address</label>
                     <input
@@ -503,10 +514,10 @@ export default function App() {
                     </label>
                     <button
                       type="button"
-                      onClick={() => setVerificationModalOpen(true)}
+                      onClick={() => setPasswordResetModalOpen(true)}
                       className="text-xs text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
                     >
-                      Forget password?
+                      Forgot password?
                     </button>
                   </div>
 
@@ -589,12 +600,17 @@ export default function App() {
         isOpen={googleModalOpen}
         onClose={() => setGoogleModalOpen(false)}
       />
-      <VerificationModal
-        isOpen={verificationModalOpen}
-        email={pendingUser?.email || email}
-        onClose={() => setVerificationModalOpen(false)}
-        onVerify={handleVerificationSuccess}
-        onResend={handleVerificationResend}
+      <PasswordResetModal
+        isOpen={passwordResetModalOpen}
+        initialEmail={email}
+        onClose={() => setPasswordResetModalOpen(false)}
+        onRequestCode={async (resetEmail) => {
+          await requestPasswordReset(resetEmail);
+        }}
+        onResetPassword={async (resetEmail, code, newPassword) => {
+          await resetAccountPassword(resetEmail, code, newPassword);
+        }}
+        onComplete={handlePasswordResetComplete}
       />
     </div>
   );

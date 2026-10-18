@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { DashboardSection, Product, Order, ActivityLog, FarmerProfile, OrderStatus } from '../../types/dashboard';
+import { DashboardSection, Product, Order, FarmerProfile, OrderStatus } from '../../types/dashboard';
 import {
-  LEGACY_DEMO_ACTIVITY_IDS,
   LEGACY_DEMO_FARMER_AVATAR,
   LEGACY_DEMO_ORDER_IDS,
   LEGACY_DEMO_PRODUCT_IDS,
@@ -13,18 +12,16 @@ import { MyProfileSection } from './MyProfileSection';
 import { MyProductsSection } from './MyProductsSection';
 import { MyListingsSection } from './MyListingsSection';
 import { OrdersSection } from './OrdersSection';
-import { RecentActivitySection } from './RecentActivitySection';
 import { MarketplaceConnectSection } from './MarketplaceConnectSection';
 import { AgriBusinessConnectSection } from './AgriBusinessConnectSection';
 import { ProductFormModal } from './ProductFormModal';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
-import { getAuthToken, loadAccountData, saveAccountData } from '../../lib/api';
+import { getAuthToken, loadAccountData, loadFarmerOrders, saveAccountData, updateFarmerOrderStatus } from '../../lib/api';
 
 type FarmerDashboardSnapshot = {
   profile: FarmerProfile;
   products: Product[];
   orders: Order[];
-  activities: ActivityLog[];
 };
 
 interface FarmerDashboardProps {
@@ -54,7 +51,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
 
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [activities, setActivities] = useState<ActivityLog[]>([]);
+  const [remoteOrderIds, setRemoteOrderIds] = useState<Set<string>>(() => new Set());
   const [snapshotLoaded, setSnapshotLoaded] = useState(() => !getAuthToken());
   const [persistenceStatus, setPersistenceStatus] = useState<'saving' | 'saved' | 'offline'>(
     () => (getAuthToken() ? 'saving' : 'saved')
@@ -66,8 +63,11 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
       return;
     }
 
-    void loadAccountData<FarmerDashboardSnapshot>('farmer-dashboard')
-      .then(({ data }) => {
+    void Promise.all([
+      loadAccountData<FarmerDashboardSnapshot>('farmer-dashboard'),
+      loadFarmerOrders(),
+    ])
+      .then(([{ data }, { orders: sharedOrders }]) => {
         if (!active) return;
         if (data) {
           if (data.profile) {
@@ -82,13 +82,18 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
           setProducts(Array.isArray(data.products)
             ? data.products.filter((product) => !LEGACY_DEMO_PRODUCT_IDS.has(product.id))
             : []);
-          setOrders(Array.isArray(data.orders)
+          const savedOrders = Array.isArray(data.orders)
             ? data.orders.filter((order) => !LEGACY_DEMO_ORDER_IDS.has(order.id))
-            : []);
-          setActivities(Array.isArray(data.activities)
-            ? data.activities.filter((activity) => !LEGACY_DEMO_ACTIVITY_IDS.has(activity.id))
-            : []);
+            : [];
+          const sharedOrderIds = new Set(sharedOrders.map((order) => order.id));
+          setOrders([
+            ...sharedOrders,
+            ...savedOrders.filter((order) => !sharedOrderIds.has(order.id)),
+          ]);
+        } else {
+          setOrders(sharedOrders);
         }
+        setRemoteOrderIds(new Set(sharedOrders.map((order) => order.id)));
         setSnapshotLoaded(true);
         setPersistenceStatus('saved');
       })
@@ -109,13 +114,12 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
         profile,
         products,
         orders,
-        activities,
       })
         .then(() => setPersistenceStatus('saved'))
         .catch(() => setPersistenceStatus('offline'));
     }, 400);
     return () => window.clearTimeout(timeout);
-  }, [snapshotLoaded, profile, products, orders, activities]);
+  }, [snapshotLoaded, profile, products, orders]);
 
   // Search query in header
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -193,21 +197,6 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
     };
   });
 
-  const addActivity = (
-    type: ActivityLog['type'],
-    title: string,
-    description: string
-  ) => {
-    const newAct: ActivityLog = {
-      id: `act-${Date.now()}`,
-      type,
-      title,
-      description,
-      timestamp: 'Just now',
-    };
-    setActivities((prev) => [newAct, ...prev]);
-  };
-
   // Add or Edit Product Handler
   const handleSaveProduct = (
     productData: Omit<Product, 'id'>,
@@ -220,11 +209,6 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
           p.id === existingId ? { ...productData, id: existingId } : p
         )
       );
-      addActivity(
-        'product_edited',
-        `Updated: ${productData.name}`,
-        `Price updated to ₹${productData.price}/${productData.unit}, inventory at ${productData.quantity} ${productData.unit}.`
-      );
       showToast(`Updated "${productData.name}" successfully!`);
     } else {
       // Add new product
@@ -233,11 +217,6 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
         id: `prod-${Date.now().toString().slice(-4)}`,
       };
       setProducts((prev) => [newProduct, ...prev]);
-      addActivity(
-        'product_added',
-        `Added New Harvest: ${productData.name}`,
-        `Listed ${productData.quantity} ${productData.unit} at ₹${productData.price}/${productData.unit}.`
-      );
       showToast(`Added "${productData.name}" to your farm listings!`);
     }
   };
@@ -247,11 +226,6 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
     const target = products.find((p) => p.id === productId);
     if (target) {
       setProducts((prev) => prev.filter((p) => p.id !== productId));
-      addActivity(
-        'product_deleted',
-        `Deleted Listing: ${target.name}`,
-        `Removed listing (${target.quantity} ${target.unit}) from active marketplace.`
-      );
       showToast(`Deleted "${target.name}" from your listings.`);
     }
     setIsDeleteModalOpen(false);
@@ -259,27 +233,28 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
   };
 
   // Order status update
-  const handleUpdateOrderStatus = (orderId: string, newStatus: OrderStatus) => {
-    setOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
-    );
-    const target = orders.find((o) => o.id === orderId);
-    addActivity(
-      'order_updated',
-      `Order ${orderId} Status: ${newStatus}`,
-      `Order for ${target?.productName || 'Harvest'} marked as ${newStatus}.`
-    );
+  const handleUpdateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
+    if (remoteOrderIds.has(orderId)) {
+      try {
+        const { order } = await updateFarmerOrderStatus(orderId, newStatus);
+        setOrders((previous) => previous.map((savedOrder) =>
+          savedOrder.id === orderId ? order : savedOrder
+        ));
+        showToast(`Order ${orderId} updated to ${newStatus}.`);
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : 'Could not update the order.');
+      }
+      return;
+    }
+    setOrders((prev) => prev.map((order) =>
+      order.id === orderId ? { ...order, status: newStatus } : order
+    ));
     showToast(`Order ${orderId} updated to ${newStatus}.`);
   };
 
   // Profile update
   const handleUpdateProfile = (updatedProfile: FarmerProfile) => {
     setProfile(updatedProfile);
-    addActivity(
-      'profile_updated',
-      'Farmer Profile Updated',
-      `Updated farm details for ${updatedProfile.farmName}.`
-    );
     showToast('Profile information saved!');
   };
 
@@ -337,8 +312,6 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
           profile={profile}
           onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
           onOpenAddProduct={handleOpenAddModal}
-          onViewActivity={() => setCurrentSection('activity')}
-          activityCount={activities.length}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
         />
@@ -410,10 +383,6 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
               orders={orders}
               onUpdateOrderStatus={handleUpdateOrderStatus}
             />
-          )}
-
-          {currentSection === 'activity' && (
-            <RecentActivitySection activities={activities} />
           )}
 
           {currentSection === 'marketplace-connect' && (

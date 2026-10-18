@@ -6,7 +6,6 @@ import {
   PlusCircle,
   ListFilter,
   ShoppingBag,
-  History,
   Users,
   Store,
   LogOut,
@@ -17,6 +16,7 @@ import {
 import { DashboardSection, FarmerProfile } from '../../types/dashboard';
 
 interface FarmerSidebarProps {
+  role?: 'Farmer' | 'AgriBusiness';
   currentSection: DashboardSection;
   onSelectSection: (section: DashboardSection) => void;
   profile: FarmerProfile;
@@ -28,6 +28,7 @@ interface FarmerSidebarProps {
 }
 
 export const FarmerSidebar: React.FC<FarmerSidebarProps> = ({
+  role = 'Farmer',
   currentSection,
   onSelectSection,
   profile,
@@ -37,7 +38,7 @@ export const FarmerSidebar: React.FC<FarmerSidebarProps> = ({
   isOpenMobile,
   onCloseMobile,
 }) => {
-  const NAV_ITEMS: Array<{
+  const farmerNavItems: Array<{
     id: DashboardSection;
     label: string;
     icon: React.ReactNode;
@@ -76,11 +77,6 @@ export const FarmerSidebar: React.FC<FarmerSidebarProps> = ({
       badge: ordersCount,
     },
     {
-      id: 'activity',
-      label: 'Recent Activity',
-      icon: <History className="w-4 h-4" />,
-    },
-    {
       id: 'marketplace-connect',
       label: 'Customer Inquiries',
       icon: <Users className="w-4 h-4 text-blue-600" />,
@@ -91,6 +87,43 @@ export const FarmerSidebar: React.FC<FarmerSidebarProps> = ({
       icon: <Store className="w-4 h-4 text-amber-600" />,
     },
   ];
+  const agriBusinessNavItems: typeof farmerNavItems = [
+    {
+      id: 'overview',
+      label: 'Sales Overview',
+      icon: <LayoutDashboard className="w-4 h-4" />,
+    },
+    {
+      id: 'profile',
+      label: 'Business Profile',
+      icon: <UserCircle2 className="w-4 h-4" />,
+    },
+    {
+      id: 'products',
+      label: 'My Products',
+      icon: <Package className="w-4 h-4" />,
+      badge: productsCount,
+    },
+    {
+      id: 'add-product',
+      label: 'Add Product',
+      icon: <PlusCircle className="w-4 h-4 text-emerald-600" />,
+    },
+    {
+      id: 'listings',
+      label: 'My Listings',
+      icon: <ListFilter className="w-4 h-4" />,
+    },
+    {
+      id: 'orders',
+      label: 'Farmer & User Requests',
+      icon: <ShoppingBag className="w-4 h-4" />,
+      badge: ordersCount,
+    },
+  ];
+  const navItems = role === 'Farmer' ? farmerNavItems : agriBusinessNavItems;
+  const workspaceName = role === 'Farmer' ? 'Farmer Hub' : 'AgriBusiness Hub';
+  const workspaceSubtitle = role === 'Farmer' ? 'Farmer workspace' : 'Business workspace';
 
   const handleNavClick = (section: DashboardSection) => {
     onSelectSection(section);
@@ -122,9 +155,9 @@ export const FarmerSidebar: React.FC<FarmerSidebarProps> = ({
               </div>
               <div>
                 <h2 className="text-base font-bold text-slate-900 tracking-tight leading-tight">
-                  Farmer Hub
+                  {workspaceName}
                 </h2>
-                <p className="text-[11px] text-slate-500 font-medium">Farmer workspace</p>
+                <p className="text-[11px] text-slate-500 font-medium">{workspaceSubtitle}</p>
               </div>
             </div>
 
@@ -136,7 +169,7 @@ export const FarmerSidebar: React.FC<FarmerSidebarProps> = ({
             </button>
           </div>
 
-          {/* Mini Farmer Profile Badge */}
+          {/* Mini seller profile badge */}
           <div className="p-3 mx-3 my-3 bg-white border border-slate-200 rounded-xl flex items-center gap-3">
             {profile.avatar ? (
               <img
@@ -161,11 +194,11 @@ export const FarmerSidebar: React.FC<FarmerSidebarProps> = ({
           </div>
 
           {/* Navigation Links */}
-          <nav aria-label="Farmer dashboard" className="flex-1 px-3 py-2 space-y-1">
+          <nav aria-label={`${role} dashboard`} className="flex-1 px-3 py-2 space-y-1">
             <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 tracking-wider uppercase">
               Main Menu
             </div>
-            {NAV_ITEMS.map((item) => {
+            {navItems.map((item) => {
               const isActive = currentSection === item.id;
               return (
                 <button
