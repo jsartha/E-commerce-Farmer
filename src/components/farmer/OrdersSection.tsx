@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ShoppingBag, CheckCircle2, Truck, Clock, MapPin, Phone, Mail, ChevronDown } from 'lucide-react';
 import { Order, OrderStatus } from '../../types/dashboard';
+import { useLanguage } from '../../lib/i18n';
 
 interface OrdersSectionProps {
   orders: Order[];
@@ -11,10 +12,11 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
   orders,
   onUpdateOrderStatus,
 }) => {
+  const { t } = useLanguage();
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
-  const STATUS_TABS = ['All', 'Pending', 'Confirmed', 'Dispatched', 'Delivered'];
+  const STATUS_TABS: OrderStatus[] = ['Pending', 'Confirmed', 'Dispatched', 'Delivered'];
 
   const filteredOrders =
     statusFilter === 'All'
@@ -29,19 +31,19 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
       <div className="bg-white p-5 sm:p-6 rounded-[28px] border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-xl font-bold text-slate-900">Customer Orders</h2>
+            <h2 className="text-xl font-bold text-slate-900">{t('Customer Orders')}</h2>
             <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
-              {orders.length} Bookings
+              {orders.length} {t('Bookings')}
             </span>
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
-            Real-time direct farm-to-table consumer and commercial orders
+            {t('Real-time direct farm-to-table consumer and commercial orders')}
           </p>
         </div>
 
         <div className="p-3 bg-[#F8F9F5] border border-slate-200/60 rounded-2xl flex items-center gap-3">
           <div>
-            <span className="text-[10px] text-slate-400 block font-medium">Total Booked Volume</span>
+            <span className="text-[10px] text-slate-400 block font-medium">{t('Total Booked Volume')}</span>
             <span className="text-base font-extrabold text-slate-900 font-mono">
               ₹{totalSales.toLocaleString()}
             </span>
@@ -51,7 +53,7 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
 
       {/* Status Filter Tabs */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-        {STATUS_TABS.map((tab) => {
+        {['All', ...STATUS_TABS].map((tab) => {
           const count =
             tab === 'All'
               ? orders.length
@@ -66,7 +68,7 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                   : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80'
               }`}
             >
-              <span>{tab}</span>
+              <span>{t(tab)}</span>
               <span
                 className={`text-[10px] px-1.5 py-0.2 rounded-full ${
                   statusFilter === tab
@@ -86,8 +88,8 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
         {filteredOrders.length === 0 ? (
           <div className="bg-white rounded-[32px] p-12 text-center border border-slate-200/80 shadow-xs space-y-2">
             <ShoppingBag className="w-8 h-8 text-slate-300 mx-auto" />
-            <h3 className="text-base font-bold text-slate-900">No Orders in this category</h3>
-            <p className="text-xs text-slate-400">All orders have been updated or completed.</p>
+            <h3 className="text-base font-bold text-slate-900">{t('No Orders in this category')}</h3>
+            <p className="text-xs text-slate-400">{t('All orders have been updated or completed.')}</p>
           </div>
         ) : (
           filteredOrders.map((ord) => {
@@ -120,7 +122,7 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                               : 'bg-slate-200 text-slate-800'
                           }`}
                         >
-                          {ord.status}
+                          {t(ord.status)}
                         </span>
                         <span className="text-[11px] text-slate-400">· {ord.orderDate}</span>
                       </div>
@@ -129,10 +131,13 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                         {ord.productName}
                       </h3>
                       <p className="text-xs text-slate-500">
-                        Quantity Ordered:{' '}
+                        {t('Quantity Ordered:')}{' '}
                         <strong className="text-slate-800">
                           {ord.quantity} {ord.unit}
                         </strong>
+                      </p>
+                      <p className="mt-1 text-xs font-semibold text-emerald-700">
+                        {t(ord.orderSize === 'bulk' ? 'Bulk order' : 'Small order')}
                       </p>
                     </div>
                   </div>
@@ -144,7 +149,11 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                         ₹{ord.totalPrice.toLocaleString()}
                       </span>
                       <span className="text-[10px] text-emerald-600 font-medium block">
-                        Direct Account Transfer
+                        {ord.paymentMethod === 'upi'
+                          ? t('UPI')
+                          : ord.paymentMethod === 'online'
+                            ? t('Online payment (legacy order)')
+                            : t('Cash on delivery')}
                       </span>
                     </div>
 
@@ -157,11 +166,11 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                         }
                         className="px-2.5 py-1 text-xs font-semibold bg-[#F5F6F3] border border-slate-200 rounded-xl text-slate-900 focus:outline-none cursor-pointer"
                       >
-                        <option value="Pending">Pending</option>
-                        <option value="Confirmed">Confirmed</option>
-                        <option value="Dispatched">Dispatched</option>
-                        <option value="Delivered">Delivered</option>
-                        <option value="Cancelled">Cancelled</option>
+                        <option value="Pending">{t('Pending')}</option>
+                        <option value="Confirmed">{t('Confirmed')}</option>
+                        <option value="Dispatched">{t('Dispatched')}</option>
+                        <option value="Delivered">{t('Delivered')}</option>
+                        <option value="Cancelled">{t('Cancelled')}</option>
                       </select>
                     </div>
                   </div>
@@ -171,6 +180,10 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                 <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs text-slate-600 gap-2 bg-[#FAFAFA] p-3 rounded-xl">
                   <div className="flex items-center gap-4 flex-wrap">
                     <span className="font-semibold text-slate-900">{ord.customerName}</span>
+                    <span className="flex items-center gap-1 text-slate-500">
+                      <Mail className="w-3.5 h-3.5" />
+                      {ord.customerEmail}
+                    </span>
                     <span className="flex items-center gap-1 text-slate-500">
                       <Phone className="w-3.5 h-3.5" />
                       {ord.customerPhone}

@@ -42,12 +42,15 @@ export interface Product {
 }
 
 export type MarketplaceTransactionStatus = 'Requested' | 'Accepted' | 'Completed' | 'Cancelled';
+export type PaymentMethod = 'upi' | 'online' | 'cash-on-delivery';
+export type OrderSize = 'small' | 'bulk';
 
 export interface MarketplaceTransaction {
   id: string;
   sellerEmail: string;
   buyerName: string;
   buyerEmail: string;
+  buyerPhone?: string;
   productId: string;
   productName: string;
   transactionType: 'sale' | 'rental';
@@ -58,6 +61,8 @@ export interface MarketplaceTransaction {
   location: string;
   createdAt: string;
   status: MarketplaceTransactionStatus;
+  paymentMethod?: PaymentMethod;
+  orderSize?: OrderSize;
 }
 
 export type AgriBusinessCategory = Extract<
@@ -94,6 +99,8 @@ export interface Order {
   orderDate: string;
   status: OrderStatus;
   deliveryAddress: string;
+  paymentMethod?: PaymentMethod;
+  orderSize?: OrderSize;
 }
 
 export interface FarmerProfile {

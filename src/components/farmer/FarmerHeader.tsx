@@ -1,6 +1,7 @@
 import React from 'react';
 import { Menu, Plus, Search, MapPin, UserCircle2 } from 'lucide-react';
 import { FarmerProfile } from '../../types/dashboard';
+import { useLanguage } from '../../lib/i18n';
 
 interface FarmerHeaderProps {
   role?: 'Farmer' | 'AgriBusiness';
@@ -19,6 +20,7 @@ export const FarmerHeader: React.FC<FarmerHeaderProps> = ({
   searchQuery,
   onSearchChange,
 }) => {
+  const { t } = useLanguage();
   return (
     <header className="sticky top-0 z-30 bg-[#eef1f5]/95 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-8 py-3.5 flex items-center justify-between gap-4">
       {/* Left: Mobile Menu & Search */}
@@ -26,7 +28,7 @@ export const FarmerHeader: React.FC<FarmerHeaderProps> = ({
         <button
           onClick={onOpenMobileSidebar}
           className="lg:hidden p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-          aria-label="Open sidebar menu"
+          aria-label={t('Open sidebar menu')}
         >
           <Menu className="w-5 h-5" />
         </button>
@@ -37,7 +39,9 @@ export const FarmerHeader: React.FC<FarmerHeaderProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder={`Search ${role === 'Farmer' ? 'crops' : 'equipment'}, orders, listings...`}
+            placeholder={role === 'Farmer'
+              ? t('Search crops, orders, listings...')
+              : t('Search equipment, orders, listings...')}
             className="w-full pl-9 pr-4 py-2 text-xs bg-white border border-slate-200 focus:border-blue-300 focus:bg-white rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none transition-all"
           />
         </div>
@@ -49,7 +53,7 @@ export const FarmerHeader: React.FC<FarmerHeaderProps> = ({
         <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-[#F8F9F5] border border-slate-200/60 rounded-xl text-xs text-slate-700">
           <MapPin className="w-3.5 h-3.5 text-emerald-600" />
           <span>
-            {[profile.village, profile.state].filter(Boolean).join(', ') || `Add ${role === 'Farmer' ? 'farm' : 'business'} location`}
+            {[profile.village, profile.state].filter(Boolean).join(', ') || t(role === 'Farmer' ? 'Add farm location' : 'Add business location')}
           </span>
         </div>
 
@@ -59,7 +63,7 @@ export const FarmerHeader: React.FC<FarmerHeaderProps> = ({
           className="flex items-center gap-1.5 px-3.5 py-2 bg-[#D2F442] hover:bg-[#c6ec32] text-slate-950 font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer whitespace-nowrap"
         >
           <Plus className="w-4 h-4 stroke-[2.5]" />
-          <span className="hidden sm:inline">Add Product</span>
+          <span className="hidden sm:inline">{t('Add Product')}</span>
         </button>
 
         {/* Avatar */}

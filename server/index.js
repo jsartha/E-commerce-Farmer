@@ -22,6 +22,8 @@ const port = Number(process.env.PORT || 3001);
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const accountTypes = new Set(['user', 'farmer', 'agri-business']);
 const orderStatuses = new Set(['Pending', 'Confirmed', 'Dispatched', 'Delivered', 'Cancelled']);
+const paymentMethods = new Set(['upi', 'cash-on-delivery']);
+const orderSizes = new Set(['small', 'bulk']);
 const accountDataRoles = new Map([
   ['farmer-dashboard', 'farmer'],
   ['agri-business-dashboard', 'agri-business'],
@@ -73,6 +75,8 @@ database.exec(`
     quantity INTEGER NOT NULL,
     unit TEXT NOT NULL,
     total_price REAL NOT NULL,
+    payment_method TEXT NOT NULL DEFAULT 'cash-on-delivery',
+    order_size TEXT NOT NULL DEFAULT 'small',
     order_date TEXT NOT NULL,
     status TEXT NOT NULL,
     delivery_address TEXT NOT NULL
@@ -80,6 +84,13 @@ database.exec(`
   CREATE INDEX IF NOT EXISTS orders_seller_date_idx ON orders(seller_email, order_date DESC);
   CREATE INDEX IF NOT EXISTS orders_buyer_date_idx ON orders(buyer_email, order_date DESC);
 `);
+const orderColumns = new Set(database.prepare('PRAGMA table_info(orders)').all().map((column) => column.name));
+if (!orderColumns.has('payment_method')) {
+  database.exec("ALTER TABLE orders ADD COLUMN payment_method TEXT NOT NULL DEFAULT 'cash-on-delivery'");
+}
+if (!orderColumns.has('order_size')) {
+  database.exec("ALTER TABLE orders ADD COLUMN order_size TEXT NOT NULL DEFAULT 'small'");
+}
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -218,6 +229,8 @@ const mapOrder = (row) => ({
   quantity: row.quantity,
   unit: row.unit,
   totalPrice: row.total_price,
+  paymentMethod: row.payment_method,
+  orderSize: row.order_size,
   orderDate: row.order_date,
   status: row.status,
   deliveryAddress: row.delivery_address,
@@ -352,7 +365,11 @@ app.post('/api/orders', requireSession, (req, res) => {
   const productName = String(body.productName || '').trim();
   const unit = String(body.unit || '').trim();
   const deliveryAddress = String(body.deliveryAddress || '').trim();
+  const paymentMethod = String(body.paymentMethod || 'cash-on-delivery');
+  const orderSize = String(body.orderSize || 'small');
+  const customerPhone = String(body.customerPhone || req.account.user.phone || '').trim();
   const quantity = Number(body.quantity);
+  const phoneDigits = customerPhone.replace(/\D/g, '');
   const seller = database.prepare('SELECT user_json FROM accounts WHERE email = ?').get(sellerEmail);
   if (!id || id.length > 120 || !sellerEmail || !productId || !productName || !unit || !deliveryAddress) {
     return res.status(400).json({ error: 'Order details are incomplete.' });
@@ -365,6 +382,15 @@ app.post('/api/orders', requireSession, (req, res) => {
   }
   if (!Number.isSafeInteger(quantity) || quantity < 1) {
     return res.status(400).json({ error: 'Enter a valid order quantity.' });
+  }
+  if (!paymentMethods.has(paymentMethod)) {
+    return res.status(400).json({ error: 'Choose a valid payment method.' });
+  }
+  if (!orderSizes.has(orderSize)) {
+    return res.status(400).json({ error: 'Choose small or bulk order.' });
+  }
+  if (phoneDigits.length < 7 || phoneDigits.length > 15) {
+    return res.status(400).json({ error: 'Enter a valid buyer phone number.' });
   }
   const sellerSnapshot = database.prepare(
     'SELECT data_json FROM account_data WHERE email = ? AND data_key = ?'
@@ -392,12 +418,14 @@ app.post('/api/orders', requireSession, (req, res) => {
     id,
     customerName: req.account.user.name,
     customerEmail: req.account.email,
-    customerPhone: req.account.user.phone || '',
+    customerPhone,
     productName: String(product.name || productName),
     productId,
     quantity,
     unit: String(product.unit || unit),
     totalPrice,
+    paymentMethod,
+    orderSize,
     orderDate: new Date().toISOString(),
     status: 'Pending',
     deliveryAddress,
@@ -406,8 +434,8 @@ app.post('/api/orders', requireSession, (req, res) => {
     database.prepare(`
       INSERT INTO orders (
         id, seller_email, buyer_email, customer_name, customer_phone, product_name,
-        product_id, quantity, unit, total_price, order_date, status, delivery_address
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        product_id, quantity, unit, total_price, payment_method, order_size, order_date, status, delivery_address
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       order.id,
       sellerEmail,
@@ -419,6 +447,8 @@ app.post('/api/orders', requireSession, (req, res) => {
       order.quantity,
       order.unit,
       order.totalPrice,
+      order.paymentMethod,
+      order.orderSize,
       order.orderDate,
       order.status,
       order.deliveryAddress

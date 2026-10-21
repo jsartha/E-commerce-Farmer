@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, LogOut, MapPin, ShoppingCart, Star, Leaf, UserRound, PackageCheck, CircleCheck, Clock3, Truck, Wrench, X } from 'lucide-react';
-import { Product } from '../types/dashboard';
+import { OrderSize, PaymentMethod, Product } from '../types/dashboard';
 import { UserAccount } from '../types/auth';
 import { getAuthToken, loadAccountData, loadMarketplaceListings, recordFarmerOrder, recordMarketplaceTransaction, saveAccountData } from '../lib/api';
+import { useLanguage } from '../lib/i18n';
 
 type CustomerOrder = {
   id: string;
@@ -13,6 +14,8 @@ type CustomerOrder = {
   address: string;
   placedAt: string;
   status: 'Order placed' | 'Confirmed' | 'Shipped' | 'Delivered';
+  paymentMethod: PaymentMethod;
+  orderSize: OrderSize;
 };
 
 interface CustomerMarketplacePageProps {
@@ -29,6 +32,7 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
   onLogout,
   onUpdateUser,
 }) => {
+  const { t } = useLanguage();
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [activeView, setActiveView] = useState<'shop' | 'orders' | 'profile'>('shop');
   const [products, setProducts] = useState<Product[]>([]);
@@ -36,7 +40,11 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [checkoutProduct, setCheckoutProduct] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState(1);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('upi');
+  const [orderSize, setOrderSize] = useState<OrderSize>('small');
+  const [upiPaymentStep, setUpiPaymentStep] = useState(false);
   const [checkoutError, setCheckoutError] = useState('');
+  const [checkoutPhone, setCheckoutPhone] = useState(user.phone || '');
   const [deliveryAddress, setDeliveryAddress] = useState(
     [user.village, user.district, user.state].filter(Boolean).join(', ')
   );
@@ -121,9 +129,19 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
       setCheckoutError('Enter a delivery address or rental location.');
       return;
     }
+    const phoneDigits = checkoutPhone.replace(/\D/g, '');
+    if (phoneDigits.length < 7 || phoneDigits.length > 15) {
+      setCheckoutError(t('Enter a valid phone number.'));
+      return;
+    }
     if (!Number.isInteger(quantity) || quantity < 1
       || (checkoutProduct.listingType !== 'rental' && quantity > checkoutProduct.quantity)) {
       setCheckoutError('Enter a valid quantity or rental duration.');
+      return;
+    }
+    if (paymentMethod === 'upi' && !upiPaymentStep) {
+      setUpiPaymentStep(true);
+      setCheckoutError('');
       return;
     }
     const order: CustomerOrder = {
@@ -135,6 +153,8 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
       address: deliveryAddress.trim(),
       placedAt: new Date().toLocaleString(),
       status: 'Order placed',
+      paymentMethod,
+      orderSize,
     };
     if (checkoutProduct.sellerType === 'farmer') {
       if (!checkoutProduct.sellerEmail) {
@@ -146,7 +166,7 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
           id: order.id,
           customerName: user.name,
           customerEmail: user.email,
-          customerPhone: user.phone || '',
+          customerPhone: checkoutPhone.trim(),
           productName: checkoutProduct.name,
           productId: checkoutProduct.id,
           quantity,
@@ -155,6 +175,8 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
           orderDate: new Date().toISOString(),
           status: 'Pending',
           deliveryAddress: order.address,
+          paymentMethod,
+          orderSize,
         });
       } catch (error) {
         setCheckoutError(error instanceof Error ? error.message : 'Could not send the order to the farmer.');
@@ -168,6 +190,7 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
         sellerEmail: checkoutProduct.sellerEmail,
         buyerName: user.name,
         buyerEmail: user.email,
+        buyerPhone: checkoutPhone.trim(),
         productId: checkoutProduct.id,
         productName: checkoutProduct.name,
         transactionType: order.listingType,
@@ -178,11 +201,14 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
         location: order.address,
         createdAt: new Date().toISOString(),
         status: 'Requested',
+        paymentMethod,
+        orderSize,
       }).catch((error: unknown) => {
         setCheckoutError(error instanceof Error ? error.message : 'Could not send the seller request.');
       });
     }
     setCheckoutProduct(null);
+    setUpiPaymentStep(false);
     setSelectedProduct(null);
     setActiveView('orders');
     setNotice(`${order.listingType === 'rental' ? 'Rental request' : 'Order'} ${order.id} placed successfully.`);
@@ -224,7 +250,7 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
               )}
 
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Farm &amp; agri-tools marketplace</p>
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-400">{t('Farm & agri-tools marketplace')}</p>
                 <h1 className="text-2xl font-black tracking-tight text-slate-900">
                   Welcome back, {user.name || 'Customer'}
                 </h1>
@@ -233,19 +259,19 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
 
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" onClick={() => setActiveView('shop')} className={`rounded-xl px-3 py-2 text-xs font-bold ${activeView === 'shop' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'}`}>
-                Shop
+                {t('Shop')}
               </button>
               <button type="button" onClick={() => setActiveView('orders')} className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold ${activeView === 'orders' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'}`}>
-                <PackageCheck className="h-3.5 w-3.5" /> Orders {orders.length > 0 && `(${orders.length})`}
+                <PackageCheck className="h-3.5 w-3.5" /> {t('Orders')} {orders.length > 0 && `(${orders.length})`}
               </button>
               <button type="button" onClick={() => setActiveView('profile')} className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold ${activeView === 'profile' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'}`}>
-                <UserRound className="h-3.5 w-3.5" /> Profile
+                <UserRound className="h-3.5 w-3.5" /> {t('Profile')}
               </button>
               <div className="rounded-2xl bg-[#F3F7E5] px-3 py-2 text-left">
-                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Delivering to</p>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">{t('Delivering to')}</p>
                 <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-slate-800">
                   <MapPin className="h-3.5 w-3.5 text-emerald-600" />
-                  {[user.village, user.district, user.state].filter(Boolean).join(', ') || 'Add delivery location'}
+                  {[user.village, user.district, user.state].filter(Boolean).join(', ') || t('Add delivery location')}
                 </p>
               </div>
 
@@ -255,22 +281,22 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
                 className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white transition-colors hover:bg-slate-800"
               >
                 <LogOut className="h-3.5 w-3.5" />
-                Sign out
+                {t('Sign out')}
               </button>
             </div>
           </div>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-slate-200 bg-[#FAFAFA] p-4">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">Products</p>
+              <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">{t('Products')}</p>
               <p className="mt-2 text-2xl font-black text-slate-900">{totalProducts}</p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-[#FAFAFA] p-4">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">Fresh today</p>
+              <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">{t('Fresh today')}</p>
               <p className="mt-2 text-2xl font-black text-slate-900">{freshCollections}</p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-[#FAFAFA] p-4">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">Average rating</p>
+              <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">{t('Average rating')}</p>
               <p className="mt-2 text-2xl font-black text-slate-900">{avgRating}</p>
             </div>
           </div>
@@ -300,9 +326,9 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
         <section className="rounded-[28px] border border-slate-200/80 bg-white p-4 shadow-sm sm:p-5">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-xl font-black text-slate-900">Farm products &amp; agri-tools</h2>
+              <h2 className="text-xl font-black text-slate-900">{t('Farm products & agri-tools')}</h2>
               <p className="mt-1 text-xs text-slate-500">
-                Shop farmer harvests and agricultural tools, or rent equipment from agri-businesses.
+                {t('Shop farmer harvests and agricultural tools, or rent equipment from agri-businesses.')}
               </p>
             </div>
 
@@ -328,8 +354,8 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
         <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {filteredProducts.length === 0 ? (
             <div className="col-span-full rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center">
-              <h3 className="font-bold text-slate-900">No products available yet</h3>
-              <p className="mt-1 text-sm text-slate-500">New seller listings will appear here.</p>
+              <h3 className="font-bold text-slate-900">{t('No products available yet')}</h3>
+              <p className="mt-1 text-sm text-slate-500">{t('New seller listings will appear here.')}</p>
             </div>
           ) : filteredProducts.map((product: Product) => (
             <article
@@ -382,13 +408,13 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
                 <div className="flex items-end justify-between gap-3 border-t border-slate-100 pt-3">
                   <div>
                     <p className="text-[11px] uppercase tracking-[0.15em] text-slate-400">
-                      {product.listingType === 'rental' ? 'Rental price' : 'Price'}
+                      {product.listingType === 'rental'                       ? t('Rental price') : t('Price')}
                     </p>
                     <p className="mt-1 text-2xl font-black text-slate-900">₹{product.price}<span className="text-xs font-medium text-slate-500"> / {product.unit}</span></p>
                   </div>
 
                   <div className="text-right">
-                    <p className="text-[11px] uppercase tracking-[0.15em] text-slate-400">Available</p>
+                    <p className="text-[11px] uppercase tracking-[0.15em] text-slate-400">{t('Available')}</p>
                     <p className="mt-1 text-sm font-bold text-slate-900">
                       {product.sellerType === 'agri-business'
                         ? `${product.quantity} available`
@@ -406,11 +432,11 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
                       ? product.sellerName || 'Verified agri-business'
                       : 'Verified farmer supply'}
                   </span>
-                  <span>{product.soldCount} sold</span>
+                  <span>{product.soldCount} {t('sold')}</span>
                 </div>
                 {product.sellerLocation && (
                   <p className="flex items-center gap-1 text-[11px] text-slate-500">
-                    <MapPin className="h-3 w-3" /> Seller location: {product.sellerLocation}
+                    <MapPin className="h-3 w-3" /> {t('Seller location')}: {product.sellerLocation}
                   </p>
                 )}
 
@@ -420,7 +446,7 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
                     onClick={() => setSelectedProduct(product)}
                     className="flex-1 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-800 transition-colors hover:bg-slate-50"
                   >
-                    View details
+                    {t('View details')}
                   </button>
 
                   <button
@@ -429,14 +455,18 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
                     onClick={() => {
                       setCheckoutProduct(product);
                       setQuantity(1);
+                      setOrderSize('small');
+                      setPaymentMethod('upi');
+                      setUpiPaymentStep(false);
+                      setCheckoutError('');
                     }}
                     className="flex-1 rounded-2xl bg-[#D2F442] px-3 py-2.5 text-xs font-bold text-slate-950 transition-colors hover:bg-[#c7ea34]"
                   >
                     <span className="inline-flex items-center justify-center gap-1.5">
                       <ShoppingCart className="h-3.5 w-3.5" />
                       {product.status === 'Out of Stock'
-                        ? 'Unavailable'
-                        : product.listingType === 'rental' ? 'Rent now' : 'Buy now'}
+                        ? t('Unavailable')
+                        : product.listingType === 'rental' ? t('Rent now') : t('Buy now')}
                     </span>
                   </button>
                 </div>
@@ -465,15 +495,15 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
         {activeView === 'orders' && (
           <section className="space-y-4">
             <div>
-              <h2 className="text-2xl font-black text-slate-900">Your orders</h2>
-              <p className="mt-1 text-sm text-slate-500">Follow each order from placement through delivery.</p>
+              <h2 className="text-2xl font-black text-slate-900">{t('Your orders')}</h2>
+              <p className="mt-1 text-sm text-slate-500">{t('Follow each order from placement through delivery.')}</p>
             </div>
             {orders.length === 0 ? (
               <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center">
                 <PackageCheck className="mx-auto h-9 w-9 text-slate-400" />
-                <h3 className="mt-3 font-bold text-slate-900">No orders yet</h3>
-                <p className="mt-1 text-sm text-slate-500">Your purchases and delivery updates will appear here.</p>
-                <button type="button" onClick={() => setActiveView('shop')} className="mt-4 rounded-xl bg-[#D2F442] px-4 py-2.5 text-sm font-bold text-slate-950">Browse products</button>
+                <h3 className="mt-3 font-bold text-slate-900">{t('No orders yet')}</h3>
+                <p className="mt-1 text-sm text-slate-500">{t('Your purchases and delivery updates will appear here.')}</p>
+                <button type="button" onClick={() => setActiveView('shop')} className="mt-4 rounded-xl bg-[#D2F442] px-4 py-2.5 text-sm font-bold text-slate-950">{t('Browse products')}</button>
               </div>
             ) : orders.map((order) => {
               const currentStep = ORDER_STEPS.indexOf(order.status);
@@ -492,6 +522,8 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
                           {' · '}₹{order.total}
                         </p>
                         <p className="mt-1 text-xs text-slate-500">Placed {order.placedAt}</p>
+                        <p className="mt-1 text-xs text-slate-500">{t('Order size')}: {t(order.orderSize === 'bulk' ? 'Bulk order' : 'Small order')}</p>
+                        <p className="mt-1 text-xs text-slate-500">{t('Payment')}: {order.paymentMethod === 'cash-on-delivery' ? t('Cash on delivery') : order.paymentMethod === 'upi' ? t('UPI') : 'Online payment (legacy order)'}</p>
                       </div>
                     </div>
                     <div className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800">{order.status}</div>
@@ -506,7 +538,7 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
                       </div>
                     ))}
                   </div>
-                  <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-500"><MapPin className="mr-1 inline h-3.5 w-3.5" />Delivering to {order.address}</p>
+                  <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-500"><MapPin className="mr-1 inline h-3.5 w-3.5" />{t('Delivering to')} {order.address}</p>
                 </article>
               );
             })}
@@ -517,15 +549,15 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
           <section className="mx-auto max-w-2xl rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
             <div className="mb-5 flex items-center gap-3">
               {user.avatar ? <img src={user.avatar} alt={user.name} className="h-14 w-14 rounded-full object-cover" /> : <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#D2F442] font-bold">{user.name.charAt(0)}</div>}
-              <div><h2 className="text-xl font-black text-slate-900">Your profile</h2><p className="text-sm text-slate-500">{user.email}</p></div>
+              <div><h2 className="text-xl font-black text-slate-900">{t('Your profile')}</h2><p className="text-sm text-slate-500">{user.email}</p></div>
             </div>
             <form onSubmit={saveProfile} className="grid gap-4 sm:grid-cols-2">
-              <label className="text-xs font-semibold text-slate-700">Full name<input required value={profileName} onChange={(event) => setProfileName(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" /></label>
-              <label className="text-xs font-semibold text-slate-700">Phone<input type="tel" value={profilePhone} onChange={(event) => setProfilePhone(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" /></label>
-              <label className="text-xs font-semibold text-slate-700">Village / City<input value={profileVillage} onChange={(event) => setProfileVillage(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" /></label>
-              <label className="text-xs font-semibold text-slate-700">District<input value={profileDistrict} onChange={(event) => setProfileDistrict(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" /></label>
-              <label className="text-xs font-semibold text-slate-700">State<input value={profileState} onChange={(event) => setProfileState(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" /></label>
-              <div className="flex items-end"><button type="submit" className="w-full rounded-xl bg-[#D2F442] px-4 py-2.5 text-sm font-bold text-slate-950">Save profile</button></div>
+              <label className="text-xs font-semibold text-slate-700">{t('Full name')}<input required value={profileName} onChange={(event) => setProfileName(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" /></label>
+              <label className="text-xs font-semibold text-slate-700">{t('Phone')}<input type="tel" value={profilePhone} onChange={(event) => setProfilePhone(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" /></label>
+              <label className="text-xs font-semibold text-slate-700">{t('Village / City')}<input value={profileVillage} onChange={(event) => setProfileVillage(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" /></label>
+              <label className="text-xs font-semibold text-slate-700">{t('District')}<input value={profileDistrict} onChange={(event) => setProfileDistrict(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" /></label>
+              <label className="text-xs font-semibold text-slate-700">{t('State')}<input value={profileState} onChange={(event) => setProfileState(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" /></label>
+              <div className="flex items-end"><button type="submit" className="w-full rounded-xl bg-[#D2F442] px-4 py-2.5 text-sm font-bold text-slate-950">{t('Save profile')}</button></div>
             </form>
           </section>
         )}
@@ -537,20 +569,20 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
               <img src={selectedProduct.image} alt={selectedProduct.name} className="h-64 w-full object-cover md:h-full" />
               <div className="space-y-4 p-6">
                 <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">
-                  {selectedProduct.category} · {selectedProduct.sellerType === 'agri-business'
-                    ? (selectedProduct.listingType === 'rental' ? 'Available to rent' : 'Available to buy')
-                    : `Harvested ${selectedProduct.harvestDate}`}
+                  {t(selectedProduct.category)} · {selectedProduct.sellerType === 'agri-business'
+                    ? (selectedProduct.listingType === 'rental' ? t('Available to rent') : t('Available to buy'))
+                    : `${t('Harvested')} ${selectedProduct.harvestDate}`}
                 </p>
                 <h2 className="text-2xl font-black text-slate-900">{selectedProduct.name}</h2>
                 <p className="text-sm leading-6 text-slate-600">{selectedProduct.description}</p>
                 <p className="text-2xl font-black text-slate-900">₹{selectedProduct.price}<span className="text-sm font-medium text-slate-500"> / {selectedProduct.unit}</span></p>
                 <p className="text-sm text-slate-600">
                   {selectedProduct.sellerType === 'agri-business'
-                    ? `${selectedProduct.quantity} available from ${selectedProduct.sellerName || 'agri-business'}`
+                    ? `${selectedProduct.quantity} ${t('available from')} ${selectedProduct.sellerName || t('agri-business')}`
                     : `${selectedProduct.quantity} ${selectedProduct.unit} available · ${selectedProduct.rating} ★ from ${selectedProduct.soldCount} sales`}
                 </p>
-                <button type="button" disabled={selectedProduct.status === 'Out of Stock'} onClick={() => { setCheckoutProduct(selectedProduct); setQuantity(1); setSelectedProduct(null); }} className="w-full rounded-xl bg-[#D2F442] px-4 py-3 text-sm font-bold text-slate-950 disabled:opacity-50">
-                  {selectedProduct.listingType === 'rental' ? 'Rent now' : 'Buy now'}
+                <button type="button" disabled={selectedProduct.status === 'Out of Stock'} onClick={() => { setCheckoutProduct(selectedProduct); setQuantity(1); setOrderSize('small'); setPaymentMethod('upi'); setUpiPaymentStep(false); setCheckoutError(''); setSelectedProduct(null); }} className="w-full rounded-xl bg-[#D2F442] px-4 py-3 text-sm font-bold text-slate-950 disabled:opacity-50">
+                  {selectedProduct.listingType === 'rental' ? t('Rent now') : t('Buy now')}
                 </button>
               </div>
             </article>
@@ -560,33 +592,99 @@ export const CustomerMarketplacePage: React.FC<CustomerMarketplacePageProps> = (
         {checkoutProduct && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-label="Checkout">
             <form onSubmit={placeOrder} className="relative w-full max-w-md space-y-4 rounded-3xl bg-white p-6">
-              <button type="button" onClick={() => setCheckoutProduct(null)} aria-label="Close checkout" className="absolute right-4 top-4 rounded-full p-1 text-slate-500"><X className="h-4 w-4" /></button>
-              <div><p className="text-xs font-bold uppercase tracking-wider text-emerald-700">{checkoutProduct.listingType === 'rental' ? 'Equipment rental request' : 'Checkout'}</p><h2 className="mt-1 text-xl font-black text-slate-900">{checkoutProduct.name}</h2></div>
-              <label className="block text-xs font-semibold text-slate-700">
-                {checkoutProduct.listingType === 'rental'
-                  ? `Rental duration (${checkoutProduct.unit}${quantity === 1 ? '' : 's'})`
-                  : `Quantity (${checkoutProduct.unit})`}
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  max={checkoutProduct.listingType === 'rental' ? undefined : checkoutProduct.quantity}
-                  required
-                  value={quantity}
-                  onChange={(event) => setQuantity(Math.max(
-                    1,
-                    checkoutProduct.listingType === 'rental'
-                      ? Number(event.target.value)
-                      : Math.min(checkoutProduct.quantity, Number(event.target.value))
-                  ))}
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
-                />
-              </label>
-              <label className="block text-xs font-semibold text-slate-700">{checkoutProduct.listingType === 'rental' ? 'Farm / pickup location' : 'Delivery address'}<textarea required rows={3} value={deliveryAddress} onChange={(event) => setDeliveryAddress(event.target.value)} placeholder="Enter full address or farm location" className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" /></label>
+              <button type="button" onClick={() => { setCheckoutProduct(null); setUpiPaymentStep(false); }} aria-label={t('Close checkout')} className="absolute right-4 top-4 rounded-full p-1 text-slate-500"><X className="h-4 w-4" /></button>
+              <div><p className="text-xs font-bold uppercase tracking-wider text-emerald-700">{checkoutProduct.listingType === 'rental' ? t('Equipment rental request') : t('Checkout')}</p><h2 className="mt-1 text-xl font-black text-slate-900">{checkoutProduct.name}</h2></div>
+              {upiPaymentStep ? (
+                <section className="space-y-4 rounded-2xl border border-violet-200 bg-violet-50 p-4" aria-label="UPI payment">
+                  <div className="flex items-center justify-between">
+                    <span className="rounded-lg bg-violet-700 px-3 py-1.5 text-sm font-black text-white">UPI</span>
+                    <span className="text-xs font-semibold text-violet-800">Payment</span>
+                  </div>
+                  <div className="rounded-xl bg-white p-4 text-center">
+                    <p className="text-xs text-slate-500">{t('Amount to pay')}</p>
+                    <p className="mt-1 text-3xl font-black text-slate-900">₹{checkoutProduct.price * quantity}</p>
+                    <p className="mt-2 text-xs text-slate-500">{quantity} {checkoutProduct.unit} · {checkoutProduct.name}</p>
+                  </div>
+                  <p className="text-xs leading-5 text-violet-900">{t('No real payment is processed here. Complete your payment directly with the seller.')}</p>
+                  <button type="button" onClick={() => { setUpiPaymentStep(false); setCheckoutError(''); }} className="w-full rounded-xl border border-violet-200 bg-white px-4 py-2.5 text-sm font-semibold text-violet-900">{t('Back to checkout')}</button>
+                </section>
+              ) : (
+                <>
+                  <label className="block text-xs font-semibold text-slate-700">
+                    {checkoutProduct.listingType === 'rental'
+                      ? `${t('Rental duration')} (${checkoutProduct.unit}${quantity === 1 ? '' : 's'})`
+                      : `${t('Quantity')} (${checkoutProduct.unit})`}
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      max={checkoutProduct.listingType === 'rental' ? undefined : checkoutProduct.quantity}
+                      required
+                      value={quantity}
+                      onChange={(event) => setQuantity(Math.max(
+                        1,
+                        checkoutProduct.listingType === 'rental'
+                          ? Number(event.target.value)
+                          : Math.min(checkoutProduct.quantity, Number(event.target.value))
+                      ))}
+                      className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+                    />
+                  </label>
+                  <label className="block text-xs font-semibold text-slate-700">{t('Phone')}<input type="tel" required autoComplete="tel" value={checkoutPhone} onChange={(event) => setCheckoutPhone(event.target.value)} placeholder={t('Enter phone number')} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" /></label>
+                  <label className="block text-xs font-semibold text-slate-700">{checkoutProduct.listingType === 'rental' ? t('Farm / pickup location') : t('Delivery address')}<textarea required rows={3} value={deliveryAddress} onChange={(event) => setDeliveryAddress(event.target.value)} placeholder={t('Enter full address or farm location')} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" /></label>
+                  <fieldset className="space-y-2">
+                    <legend className="text-xs font-semibold text-slate-700">{t('Order size')}</legend>
+                    {([
+                      ['small', 'Small order'],
+                      ['bulk', 'Bulk order'],
+                    ] as const).map(([value, label]) => (
+                      <label key={value} className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 ${orderSize === value ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200'}`}>
+                        <input
+                          type="radio"
+                          name="order-size"
+                          value={value}
+                          checked={orderSize === value}
+                          onChange={() => setOrderSize(value)}
+                          className="accent-emerald-600"
+                        />
+                        <span className="text-xs font-semibold text-slate-800">{t(label)}</span>
+                      </label>
+                    ))}
+                  </fieldset>
+                  <fieldset className="space-y-2">
+                    <legend className="text-xs font-semibold text-slate-700">Payment method</legend>
+                    {([
+                      ['upi', 'UPI', 'Pay using UPI'],
+                      ['cash-on-delivery', 'Cash on delivery', 'Pay when your order arrives'],
+                    ] as const).map(([value, label, description]) => (
+                      <label key={value} className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 ${paymentMethod === value ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200'}`}>
+                        <input
+                          type="radio"
+                          name="payment-method"
+                          value={value}
+                          checked={paymentMethod === value}
+                          onChange={() => { setPaymentMethod(value); setUpiPaymentStep(false); }}
+                          className="accent-emerald-600"
+                        />
+                        <span>
+                          <span className="block text-xs font-semibold text-slate-800">{label}</span>
+                          <span className="block text-[11px] text-slate-500">{description}</span>
+                        </span>
+                      </label>
+                    ))}
+                    <p className="text-[11px] text-slate-500">{t('Payment is not processed in this checkout.')}</p>
+                  </fieldset>
+                  <div className="flex justify-between border-t border-slate-100 pt-3 text-sm"><span className="text-slate-600">Estimated total</span><strong className="text-lg text-slate-900">₹{checkoutProduct.price * quantity}</strong></div>
+                </>
+              )}
               {checkoutError && <p role="alert" className="text-xs text-rose-700">{checkoutError}</p>}
-              <div className="flex justify-between border-t border-slate-100 pt-3 text-sm"><span className="text-slate-600">Estimated total</span><strong className="text-lg text-slate-900">₹{checkoutProduct.price * quantity}</strong></div>
-              <button type="submit" className="w-full rounded-xl bg-[#D2F442] px-4 py-3 text-sm font-bold text-slate-950">{checkoutProduct.listingType === 'rental' ? 'Send rental request' : 'Place order'}</button>
-              <p className="text-center text-[11px] text-slate-400">Demo checkout; no payment is collected.</p>
+              {upiPaymentStep ? (
+                <button type="submit" className="w-full rounded-xl bg-[#D2F442] px-4 py-3 text-sm font-bold text-slate-950">{t('Confirm UPI payment and place order')}</button>
+              ) : (
+                <button type="submit" className="w-full rounded-xl bg-[#D2F442] px-4 py-3 text-sm font-bold text-slate-950">
+                  {paymentMethod === 'upi' ? t('Continue to UPI') : checkoutProduct.listingType === 'rental' ? t('Send rental request') : t('Place order')}
+                </button>
+              )}
             </form>
           </div>
         )}

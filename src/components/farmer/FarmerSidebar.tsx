@@ -14,6 +14,7 @@ import {
   Star,
 } from 'lucide-react';
 import { DashboardSection, FarmerProfile } from '../../types/dashboard';
+import { useLanguage } from '../../lib/i18n';
 
 interface FarmerSidebarProps {
   role?: 'Farmer' | 'AgriBusiness';
@@ -38,6 +39,7 @@ export const FarmerSidebar: React.FC<FarmerSidebarProps> = ({
   isOpenMobile,
   onCloseMobile,
 }) => {
+  const { t } = useLanguage();
   const farmerNavItems: Array<{
     id: DashboardSection;
     label: string;
@@ -46,84 +48,84 @@ export const FarmerSidebar: React.FC<FarmerSidebarProps> = ({
   }> = [
     {
       id: 'overview',
-      label: 'Sales Overview',
+      label: t('Sales Overview'),
       icon: <LayoutDashboard className="w-4 h-4" />,
     },
     {
       id: 'profile',
-      label: 'My Profile',
+      label: t('My Profile'),
       icon: <UserCircle2 className="w-4 h-4" />,
     },
     {
       id: 'products',
-      label: 'My Products',
+      label: t('My Products'),
       icon: <Package className="w-4 h-4" />,
       badge: productsCount,
     },
     {
       id: 'add-product',
-      label: 'Add Product',
+      label: t('Add Product'),
       icon: <PlusCircle className="w-4 h-4 text-emerald-600" />,
     },
     {
       id: 'listings',
-      label: 'My Listings',
+      label: t('My Listings'),
       icon: <ListFilter className="w-4 h-4" />,
     },
     {
       id: 'orders',
-      label: 'Orders',
+      label: t('Orders'),
       icon: <ShoppingBag className="w-4 h-4" />,
       badge: ordersCount,
     },
     {
       id: 'marketplace-connect',
-      label: 'Customer Inquiries',
+      label: t('Customer Inquiries'),
       icon: <Users className="w-4 h-4 text-blue-600" />,
     },
     {
       id: 'agribusiness-connect',
-      label: 'AgriBusiness Hub',
+      label: t('AgriBusiness Hub'),
       icon: <Store className="w-4 h-4 text-amber-600" />,
     },
   ];
   const agriBusinessNavItems: typeof farmerNavItems = [
     {
       id: 'overview',
-      label: 'Sales Overview',
+      label: t('Sales Overview'),
       icon: <LayoutDashboard className="w-4 h-4" />,
     },
     {
       id: 'profile',
-      label: 'Business Profile',
+      label: t('Business Profile'),
       icon: <UserCircle2 className="w-4 h-4" />,
     },
     {
       id: 'products',
-      label: 'My Products',
+      label: t('My Products'),
       icon: <Package className="w-4 h-4" />,
       badge: productsCount,
     },
     {
       id: 'add-product',
-      label: 'Add Product',
+      label: t('Add Product'),
       icon: <PlusCircle className="w-4 h-4 text-emerald-600" />,
     },
     {
       id: 'listings',
-      label: 'My Listings',
+      label: t('My Listings'),
       icon: <ListFilter className="w-4 h-4" />,
     },
     {
       id: 'orders',
-      label: 'Farmer & User Requests',
+      label: t('Farmer & User Requests'),
       icon: <ShoppingBag className="w-4 h-4" />,
       badge: ordersCount,
     },
   ];
   const navItems = role === 'Farmer' ? farmerNavItems : agriBusinessNavItems;
-  const workspaceName = role === 'Farmer' ? 'Farmer Hub' : 'AgriBusiness Hub';
-  const workspaceSubtitle = role === 'Farmer' ? 'Farmer workspace' : 'Business workspace';
+  const workspaceName = role === 'Farmer' ? t('Farmer Hub') : t('AgriBusiness Hub');
+  const workspaceSubtitle = role === 'Farmer' ? t('Farmer workspace') : t('Business workspace');
 
   const handleNavClick = (section: DashboardSection) => {
     onSelectSection(section);
@@ -196,7 +198,7 @@ export const FarmerSidebar: React.FC<FarmerSidebarProps> = ({
           {/* Navigation Links */}
           <nav aria-label={`${role} dashboard`} className="flex-1 px-3 py-2 space-y-1">
             <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 tracking-wider uppercase">
-              Main Menu
+              {t('Main Menu')}
             </div>
             {navItems.map((item) => {
               const isActive = currentSection === item.id;

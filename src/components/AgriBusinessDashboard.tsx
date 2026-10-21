@@ -329,7 +329,9 @@ export const AgriBusinessDashboard: React.FC<AgriBusinessDashboardProps> = ({ us
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">{transaction.transactionType} · {transaction.id}</p>
                 <h3 className="mt-1 font-bold text-slate-900">{transaction.productName}</h3>
-                <p className="mt-1 text-xs text-slate-500">{transaction.buyerName} · {transaction.buyerEmail} · {transaction.quantity} {transaction.unit} · {transaction.location}</p>
+                <p className="mt-1 text-xs text-slate-500">{transaction.buyerName} · {transaction.buyerEmail} · {transaction.buyerPhone || '—'} · {transaction.quantity} {transaction.unit} · {transaction.location}</p>
+                <p className="mt-1 text-xs font-semibold text-emerald-700">{transaction.orderSize === 'bulk' ? 'Bulk order' : 'Small order'}</p>
+                <p className="mt-1 text-xs text-slate-500">Payment: {transaction.paymentMethod === 'upi' ? 'UPI' : transaction.paymentMethod === 'online' ? 'Online payment (legacy request)' : 'Cash on delivery'}</p>
                 <p className="mt-1 text-xs text-slate-500">{new Date(transaction.createdAt).toLocaleString()}</p>
               </div>
               <div className="flex flex-wrap items-center gap-2">

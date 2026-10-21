@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, ChevronLeft, AlertCircle, Sprout } from 'lucide-react';
 import { UserAccount } from '../types/auth';
+import { useLanguage } from '../lib/i18n';
 
 interface FarmerRegisterFormProps {
   onBack: () => void;
@@ -37,6 +38,7 @@ export const FarmerRegisterForm: React.FC<FarmerRegisterFormProps> = ({
   onBack,
   onSubmitSuccess,
 }) => {
+  const { t } = useLanguage();
   const [firstName, setFirstName] = useState<string>('');
   const [lastName, setLastName] = useState<string>('');
   const [email, setEmail] = useState<string>('');
@@ -143,20 +145,20 @@ export const FarmerRegisterForm: React.FC<FarmerRegisterFormProps> = ({
           className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-900 transition-colors cursor-pointer py-1 -ml-1"
         >
           <ChevronLeft className="w-4 h-4" />
-          <span>Change Account Type</span>
+          <span>{t('Change Account Type')}</span>
         </button>
         <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 flex items-center gap-1">
           <Sprout className="w-3 h-3" />
-          Farmer Account
+          {t('Farmer Account')}
         </span>
       </div>
 
       <div className="text-center mb-4">
         <h2 className="text-xl font-bold tracking-tight text-slate-900">
-          Farmer Registration
+          {t('Farmer Registration')}
         </h2>
         <p className="text-xs text-slate-400 mt-0.5">
-          Join the community of verified farmers & harvest producers
+          {t('Join the community of verified farmers & harvest producers')}
         </p>
       </div>
 
@@ -172,20 +174,20 @@ export const FarmerRegisterForm: React.FC<FarmerRegisterFormProps> = ({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-[11px] font-medium text-slate-700 mb-1">
-              First Name *
+              {t('First Name')} *
             </label>
             <input
               type="text"
               required
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
-              placeholder="First name"
+              placeholder={t('First Name')}
               className="w-full px-3.5 py-2.5 text-xs bg-[#FAFAFA] border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-400 focus:bg-white transition-all"
             />
           </div>
           <div>
             <label className="block text-[11px] font-medium text-slate-700 mb-1">
-              Last Name *
+              {t('Last Name')} *
             </label>
             <input
               type="text"
@@ -202,7 +204,7 @@ export const FarmerRegisterForm: React.FC<FarmerRegisterFormProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-[11px] font-medium text-slate-700 mb-1">
-              Email Address *
+              {t('Email Address')} *
             </label>
             <input
               type="email"
@@ -215,7 +217,7 @@ export const FarmerRegisterForm: React.FC<FarmerRegisterFormProps> = ({
           </div>
           <div>
             <label className="block text-[11px] font-medium text-slate-700 mb-1">
-              Mobile Number *
+              {t('Phone Number')} *
             </label>
             <input
               type="tel"
@@ -350,7 +352,7 @@ export const FarmerRegisterForm: React.FC<FarmerRegisterFormProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-[11px] font-medium text-slate-700 mb-1">
-              Password *
+              {t('Password')} *
             </label>
             <div className="relative flex items-center">
               <input
@@ -375,7 +377,7 @@ export const FarmerRegisterForm: React.FC<FarmerRegisterFormProps> = ({
 
           <div>
             <label className="block text-[11px] font-medium text-slate-700 mb-1">
-              Confirm Password *
+              {t('Confirm Password')} *
             </label>
             <div className="relative flex items-center">
               <input

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, ChevronLeft, AlertCircle } from 'lucide-react';
 import { UserAccount } from '../types/auth';
+import { useLanguage } from '../lib/i18n';
 
 interface UserRegisterFormProps {
   onBack: () => void;
@@ -11,6 +12,7 @@ export const UserRegisterForm: React.FC<UserRegisterFormProps> = ({
   onBack,
   onSubmitSuccess,
 }) => {
+  const { t } = useLanguage();
   const [firstName, setFirstName] = useState<string>('');
   const [lastName, setLastName] = useState<string>('');
   const [email, setEmail] = useState<string>('');
@@ -88,19 +90,19 @@ export const UserRegisterForm: React.FC<UserRegisterFormProps> = ({
           className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-900 transition-colors cursor-pointer py-1 -ml-1"
         >
           <ChevronLeft className="w-4 h-4" />
-          <span>Change Account Type</span>
+          <span>{t('Change Account Type')}</span>
         </button>
         <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
-          User (Customer)
+          {t('User (Customer)')}
         </span>
       </div>
 
       <div className="text-center mb-4">
         <h2 className="text-xl font-bold tracking-tight text-slate-900">
-          User Registration
+          {t('User Registration')}
         </h2>
         <p className="text-xs text-slate-400 mt-0.5">
-          Create your customer account to start purchasing
+          {t('Create your customer account to start purchasing')}
         </p>
       </div>
 
@@ -115,20 +117,20 @@ export const UserRegisterForm: React.FC<UserRegisterFormProps> = ({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-[11px] font-medium text-slate-700 mb-1">
-              First Name *
+              {t('First Name')} *
             </label>
             <input
               type="text"
               required
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
-              placeholder="First name"
+              placeholder={t('First Name')}
               className="w-full px-3.5 py-2.5 text-xs bg-[#FAFAFA] border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-400 focus:bg-white transition-all"
             />
           </div>
           <div>
             <label className="block text-[11px] font-medium text-slate-700 mb-1">
-              Last Name *
+              {t('Last Name')} *
             </label>
             <input
               type="text"
@@ -157,7 +159,7 @@ export const UserRegisterForm: React.FC<UserRegisterFormProps> = ({
 
         <div>
           <label className="block text-[11px] font-medium text-slate-700 mb-1">
-            Date of Birth *
+            {t('Date of Birth')} *
           </label>
           <input
             type="date"
@@ -170,7 +172,7 @@ export const UserRegisterForm: React.FC<UserRegisterFormProps> = ({
 
         <div>
           <label className="block text-[11px] font-medium text-slate-700 mb-1">
-            Password *
+            {t('Password')} *
           </label>
           <div className="relative flex items-center">
             <input
@@ -195,7 +197,7 @@ export const UserRegisterForm: React.FC<UserRegisterFormProps> = ({
 
         <div>
           <label className="block text-[11px] font-medium text-slate-700 mb-1">
-            Confirm Password *
+            {t('Confirm Password')} *
           </label>
           <div className="relative flex items-center">
             <input

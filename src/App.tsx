@@ -11,8 +11,10 @@ import { FarmerDashboard } from './components/farmer/FarmerDashboard';
 import { AgriBusinessDashboard } from './components/AgriBusinessDashboard';
 import { CustomerMarketplacePage } from './components/CustomerMarketplacePage';
 import { clearAuthToken, clearLegacyDemoData, getAuthToken, loadCurrentAccount, loginAccount, migrateLegacyAccountData, registerAccount, requestPasswordReset, resetAccountPassword, saveAuthToken, updateAccountProfile } from './lib/api';
+import { useLanguage } from './lib/i18n';
 
 export default function App() {
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<AuthTab>('login');
   const [selectedAccountType, setSelectedAccountType] = useState<AccountType | null>(null);
 
@@ -430,7 +432,7 @@ export default function App() {
                       d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
                     />
                   </svg>
-                  <span>Continue with Google</span>
+                  <span>{t('Continue with Google')}</span>
                 </button>
 
                 {/* Divider */}
@@ -440,7 +442,7 @@ export default function App() {
                   </div>
                   <div className="relative flex justify-center text-[11px]">
                     <span className="bg-white px-3 text-slate-400 font-normal">
-                      Or continue with email
+                      {t('Or continue with email')}
                     </span>
                   </div>
                 </div>
@@ -458,7 +460,7 @@ export default function App() {
                     </div>
                   )}
                   <div>
-                    <label className="mb-1.5 block text-xs font-medium text-slate-700">Email Address</label>
+                    <label className="mb-1.5 block text-xs font-medium text-slate-700">{t('Email Address')}</label>
                     <input
                       type="email"
                       value={email}
@@ -472,14 +474,14 @@ export default function App() {
                   {/* Password with working eye toggle */}
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                      Password
+                      {t('Password')}
                     </label>
                     <div className="relative flex items-center">
                       <input
                         type={showPassword ? 'text' : 'password'}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Enter your password"
+                        placeholder={t('Enter your password')}
                         required
                         className="w-full pl-4 pr-11 py-3 text-xs bg-[#FAFAFA] border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-400 focus:bg-white transition-all font-mono"
                       />
@@ -488,8 +490,8 @@ export default function App() {
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => setShowPassword((prev) => !prev)}
                         className="absolute right-0 top-0 bottom-0 px-3.5 flex items-center justify-center text-slate-400 hover:text-slate-800 transition-colors cursor-pointer select-none"
-                        aria-label={showPassword ? 'Hide password' : 'Show password'}
-                        title={showPassword ? 'Hide password' : 'Show password'}
+                        aria-label={t(showPassword ? 'Hide password' : 'Show password')}
+                        title={t(showPassword ? 'Hide password' : 'Show password')}
                       >
                         {showPassword ? (
                           <EyeOff className="w-4 h-4 text-slate-800" />
@@ -510,14 +512,14 @@ export default function App() {
                       >
                         {rememberMe && <Check className="w-3 h-3 text-slate-950 stroke-[3]" />}
                       </div>
-                      <span className="text-xs text-slate-600">Remember me</span>
+                      <span className="text-xs text-slate-600">{t('Remember me')}</span>
                     </label>
                     <button
                       type="button"
                       onClick={() => setPasswordResetModalOpen(true)}
                       className="text-xs text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
                     >
-                      Forgot password?
+                      {t('Forgot password?')}
                     </button>
                   </div>
 
@@ -527,18 +529,18 @@ export default function App() {
                     disabled={isSubmitting}
                     className="w-full py-3.5 px-4 bg-[#D2F442] hover:bg-[#c6ec32] active:scale-[0.99] text-slate-950 font-bold text-xs sm:text-sm rounded-2xl shadow-sm transition-all cursor-pointer flex items-center justify-center mt-3 disabled:opacity-60"
                   >
-                    {isSubmitting ? 'Logging In...' : 'Log In'}
+                    {isSubmitting ? t('Logging In...') : t('Log In')}
                   </button>
                 </form>
 
                 <div className="text-center pt-5 text-xs text-slate-500">
-                  <span>Don't have an account? </span>
+                  <span>{t("Don't have an account?")} </span>
                   <button
                     type="button"
                     onClick={() => handleTabSwitch('signup')}
                     className="font-bold text-slate-900 hover:underline cursor-pointer"
                   >
-                    Sign Up
+                    {t('Sign Up')}
                   </button>
                 </div>
               </div>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, ChevronLeft, AlertCircle, Wrench, Check } from 'lucide-react';
 import { UserAccount } from '../types/auth';
+import { useLanguage } from '../lib/i18n';
 
 interface AgriToolsRegisterFormProps {
   onBack: () => void;
@@ -35,6 +36,7 @@ export const AgriToolsRegisterForm: React.FC<AgriToolsRegisterFormProps> = ({
   onBack,
   onSubmitSuccess,
 }) => {
+  const { t } = useLanguage();
   const [ownerFirstName, setOwnerFirstName] = useState<string>('');
   const [ownerLastName, setOwnerLastName] = useState<string>('');
   const [businessName, setBusinessName] = useState<string>('');
@@ -140,20 +142,20 @@ export const AgriToolsRegisterForm: React.FC<AgriToolsRegisterFormProps> = ({
           className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-900 transition-colors cursor-pointer py-1 -ml-1"
         >
           <ChevronLeft className="w-4 h-4" />
-          <span>Change Account Type</span>
+          <span>{t('Change Account Type')}</span>
         </button>
         <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 flex items-center gap-1">
           <Wrench className="w-3 h-3" />
-          AgriBusiness
+          {t('AgriBusiness')}
         </span>
       </div>
 
       <div className="text-center mb-4">
         <h2 className="text-xl font-bold tracking-tight text-slate-900">
-          AgriBusiness Registration
+          {t('AgriBusiness Registration')}
         </h2>
         <p className="text-xs text-slate-400 mt-0.5">
-          Sell and rent agricultural tools, machinery, and equipment
+          {t('Sell and rent agricultural tools, machinery, and equipment')}
         </p>
       </div>
 
@@ -169,7 +171,7 @@ export const AgriToolsRegisterForm: React.FC<AgriToolsRegisterFormProps> = ({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-[11px] font-medium text-slate-700 mb-1">
-              Owner's First Name *
+              {t("Owner's First Name")} *
             </label>
             <input
               type="text"
@@ -182,7 +184,7 @@ export const AgriToolsRegisterForm: React.FC<AgriToolsRegisterFormProps> = ({
           </div>
           <div>
             <label className="block text-[11px] font-medium text-slate-700 mb-1">
-              Owner's Last Name *
+              {t("Owner's Last Name")} *
             </label>
             <input
               type="text"
@@ -198,7 +200,7 @@ export const AgriToolsRegisterForm: React.FC<AgriToolsRegisterFormProps> = ({
         {/* Business Name */}
         <div>
           <label className="block text-[11px] font-medium text-slate-700 mb-1">
-            Business or Shop Name *
+            {t('Business or Shop Name')} *
           </label>
           <input
             type="text"
@@ -214,7 +216,7 @@ export const AgriToolsRegisterForm: React.FC<AgriToolsRegisterFormProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-[11px] font-medium text-slate-700 mb-1">
-              Email Address *
+              {t('Email Address')} *
             </label>
             <input
               type="email"
@@ -227,7 +229,7 @@ export const AgriToolsRegisterForm: React.FC<AgriToolsRegisterFormProps> = ({
           </div>
           <div>
             <label className="block text-[11px] font-medium text-slate-700 mb-1">
-              Mobile Number *
+              {t('Phone Number')} *
             </label>
             <input
               type="tel"
@@ -329,7 +331,7 @@ export const AgriToolsRegisterForm: React.FC<AgriToolsRegisterFormProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-[11px] font-medium text-slate-700 mb-1">
-              Password *
+              {t('Password')} *
             </label>
             <div className="relative flex items-center">
               <input
@@ -354,7 +356,7 @@ export const AgriToolsRegisterForm: React.FC<AgriToolsRegisterFormProps> = ({
 
           <div>
             <label className="block text-[11px] font-medium text-slate-700 mb-1">
-              Confirm Password *
+              {t('Confirm Password')} *
             </label>
             <div className="relative flex items-center">
               <input

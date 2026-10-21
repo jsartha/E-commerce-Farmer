@@ -267,8 +267,11 @@ export const recordFarmerOrder = async (sellerEmail: string, order: Order) => {
     productName: order.productName,
     quantity: order.quantity,
     unit: order.unit,
+    customerPhone: order.customerPhone,
     unitPrice: order.quantity ? order.totalPrice / order.quantity : 0,
     deliveryAddress: order.deliveryAddress,
+    paymentMethod: order.paymentMethod || 'cash-on-delivery',
+    orderSize: order.orderSize || 'small',
   });
 };
 

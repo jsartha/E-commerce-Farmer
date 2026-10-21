@@ -1,6 +1,7 @@
 import React from 'react';
 import { User, Sprout, Wrench, ArrowRight } from 'lucide-react';
 import { AccountType } from '../types/auth';
+import { useLanguage } from '../lib/i18n';
 
 interface AccountTypeSelectorProps {
   selectedType: AccountType | null;
@@ -11,6 +12,7 @@ export const AccountTypeSelector: React.FC<AccountTypeSelectorProps> = ({
   selectedType,
   onSelectType,
 }) => {
+  const { t } = useLanguage();
   const ACCOUNT_OPTIONS: Array<{
     type: AccountType;
     title: string;
@@ -49,10 +51,10 @@ export const AccountTypeSelector: React.FC<AccountTypeSelectorProps> = ({
     <div className="space-y-4 animate-fade-in font-sans">
       <div className="text-center mb-6">
         <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
-          Choose Your Account Type
+          {t('Choose Your Account Type')}
         </h2>
         <p className="text-xs text-slate-400 mt-1">
-          Select how you want to join our agricultural platform
+          {t('Select how you want to join our agricultural platform')}
         </p>
       </div>
 
@@ -83,14 +85,14 @@ export const AccountTypeSelector: React.FC<AccountTypeSelectorProps> = ({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="text-sm font-bold text-slate-900">
-                    {opt.title}
+                    {t(opt.title)}
                   </h3>
                   <span className="text-[10px] font-semibold text-slate-500 bg-[#ECEEE9] px-2 py-0.5 rounded-full">
-                    {opt.tag}
+                    {t(opt.tag)}
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  {opt.description}
+                  {t(opt.description)}
                 </p>
               </div>
 
